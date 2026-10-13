@@ -21,6 +21,8 @@ export function mapErrorToMessage(err) {
         return "Authentication with the LLM endpoint failed — check your API key in Settings.";
       case "network":
         return "Network error contacting the LLM endpoint. Check the Base URL in Settings and your connection.";
+      case "rate_limited":
+        return `Rate limit hit on the LLM endpoint — wait a moment and try again.${err.detail ? ` (${err.detail})` : ""}`;
       case "bad_response":
         return "The LLM endpoint returned a response this app couldn't understand.";
       default:

@@ -28,14 +28,18 @@ function isAnthropicBaseUrl(baseUrl) {
   }
 }
 
-export async function chatCompletion({ baseUrl, apiKey, model, messages, responseFormat, temperature = 0.3, maxTokens }) {
+export async function chatCompletion({ baseUrl, apiKey, model, messages, responseFormat, tools, temperature = 0.3, maxTokens }) {
   if (isAnthropicBaseUrl(baseUrl)) {
+    // Tool-calling against Anthropic's native Messages API uses a structurally
+    // different shape (input_schema, tool_use/tool_result content blocks) and
+    // isn't implemented yet — tools are silently ignored on this path, so Ask
+    // falls back to context-only answers rather than failing outright.
     return callAnthropicMessages({ baseUrl, apiKey, model, messages, temperature, maxTokens });
   }
-  return callOpenAiCompatible({ baseUrl, apiKey, model, messages, responseFormat, temperature, maxTokens });
+  return callOpenAiCompatible({ baseUrl, apiKey, model, messages, responseFormat, tools, temperature, maxTokens });
 }
 
-async function callOpenAiCompatible({ baseUrl, apiKey, model, messages, responseFormat, temperature, maxTokens }) {
+async function callOpenAiCompatible({ baseUrl, apiKey, model, messages, responseFormat, tools, temperature, maxTokens }) {
   const url = baseUrl.replace(/\/+$/, "") + "/chat/completions";
   const body = {
     model,
@@ -43,6 +47,7 @@ async function callOpenAiCompatible({ baseUrl, apiKey, model, messages, response
     temperature,
     ...(maxTokens ? { max_tokens: maxTokens } : {}),
     ...(responseFormat ? { response_format: responseFormat } : {}),
+    ...(tools && tools.length ? { tools, tool_choice: "auto" } : {}),
   };
 
   let res;
@@ -62,6 +67,11 @@ async function callOpenAiCompatible({ baseUrl, apiKey, model, messages, response
   if (res.status === 401 || res.status === 403) {
     throw new LlmApiError("Authentication failed — check your API key.", "auth", res.status);
   }
+  if (res.status === 429) {
+    const text = await res.text().catch(() => "");
+    const detail = extractErrorDetail(text);
+    throw new LlmApiError(`Rate limit exceeded on the LLM endpoint${detail ? `: ${detail}` : "."}`, "rate_limited", res.status, detail);
+  }
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     const detail = extractErrorDetail(text);
@@ -75,11 +85,17 @@ async function callOpenAiCompatible({ baseUrl, apiKey, model, messages, response
     throw new LlmApiError("LLM endpoint returned a response that wasn't valid JSON.", "bad_response");
   }
 
-  const content = json?.choices?.[0]?.message?.content;
-  if (typeof content !== "string") {
+  const message = json?.choices?.[0]?.message;
+  const rawToolCalls = message?.tool_calls;
+  const toolCalls = Array.isArray(rawToolCalls) && rawToolCalls.length
+    ? rawToolCalls.map((tc) => ({ id: tc.id, name: tc.function?.name, arguments: tc.function?.arguments }))
+    : undefined;
+
+  const content = message?.content;
+  if (typeof content !== "string" && !toolCalls) {
     throw new LlmApiError("LLM response was missing choices[0].message.content.", "bad_response");
   }
-  return { content, raw: json };
+  return { content: typeof content === "string" ? content : "", toolCalls, raw: json };
 }
 
 // Anthropic's OpenAI-compatibility shim (/v1/chat/completions) does not allow
@@ -124,6 +140,11 @@ async function callAnthropicMessages({ baseUrl, apiKey, model, messages, tempera
 
   if (res.status === 401 || res.status === 403) {
     throw new LlmApiError("Authentication failed — check your API key.", "auth", res.status);
+  }
+  if (res.status === 429) {
+    const text = await res.text().catch(() => "");
+    const detail = extractErrorDetail(text);
+    throw new LlmApiError(`Rate limit exceeded on the Anthropic API${detail ? `: ${detail}` : "."}`, "rate_limited", res.status, detail);
   }
   if (!res.ok) {
     const text = await res.text().catch(() => "");
