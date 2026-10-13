@@ -8,7 +8,7 @@ import { mapErrorToMessage } from "../utils/errors.js";
 
 const ASK_PAGE_ID = "__ask__";
 
-export function mountWikiView(root, wikiData, activePageId, { onRegenerate, onBack }) {
+export function mountWikiView(root, wikiData, activePageId, { onUpdate, onFullRebuild, onBack }) {
   clear(root);
 
   const pages = [...wikiData.pages].sort((a, b) => a.order - b.order);
@@ -17,7 +17,7 @@ export function mountWikiView(root, wikiData, activePageId, { onRegenerate, onBa
 
   function navigate(id) {
     setState({ wikiActivePageId: id });
-    mountWikiView(root, wikiData, id, { onRegenerate, onBack });
+    mountWikiView(root, wikiData, id, { onUpdate, onFullRebuild, onBack });
   }
 
   const askNav = el("ul", { class: "wiki-nav" }, [
@@ -67,6 +67,11 @@ export function mountWikiView(root, wikiData, activePageId, { onRegenerate, onBa
     pagesNav,
   ]);
 
+  const checkedAtText =
+    wikiData.checked_at && wikiData.checked_at !== wikiData.generated_at
+      ? ` · last checked ${new Date(wikiData.checked_at).toLocaleString()}`
+      : "";
+
   const header = el(
     "div",
     { style: "display:flex;justify-content:space-between;align-items:baseline;gap:12px;max-width:760px;margin:0 auto 8px;" },
@@ -74,9 +79,12 @@ export function mountWikiView(root, wikiData, activePageId, { onRegenerate, onBa
       el(
         "div",
         { class: "card-meta" },
-        `${wikiData.host}/${wikiData.owner}/${wikiData.repo} · ${wikiData.branch} · generated ${new Date(wikiData.generated_at).toLocaleString()}`
+        `${wikiData.host}/${wikiData.owner}/${wikiData.repo} · ${wikiData.branch} · generated ${new Date(wikiData.generated_at).toLocaleString()}${checkedAtText}`
       ),
-      el("button", { class: "btn btn-ghost", type: "button", onClick: onRegenerate }, "↻ Regenerate"),
+      el("div", { style: "display:flex;gap:6px;" }, [
+        el("button", { class: "btn btn-ghost", type: "button", title: "Re-check for changes; only re-summarizes what's different", onClick: onUpdate }, "↻ Update"),
+        el("button", { class: "btn btn-ghost", type: "button", title: "Discard cached summaries and regenerate everything from scratch", onClick: onFullRebuild }, "Full Rebuild"),
+      ]),
     ]
   );
 

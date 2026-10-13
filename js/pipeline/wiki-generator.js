@@ -1,4 +1,4 @@
-import { classifyFiles, groupIntoModules } from "../providers/repo-filter.js";
+import { classifyFiles, groupIntoModules, moduleSignature } from "../providers/repo-filter.js";
 import { chatCompletion } from "../llm/llm-client.js";
 import { buildModuleSummaryPrompt, buildTreeOutline, buildSynthesisPrompt } from "./prompts.js";
 import { extractJson, validateModuleSummary, validateWikiStructure } from "./schema.js";
@@ -45,7 +45,15 @@ function buildSynthesisInput(readme, treeOutline, moduleSummaries) {
   return { readme: readmeTrunc, treeOutline: treeTrunc, moduleSummaries: included, omittedModules: omitted };
 }
 
-export async function generateWiki(adapter, repoMeta, settings, onProgress = () => {}) {
+// Incremental update: reuses a prior run's per-module summaries for any
+// module whose exact file set + content signatures (blob sha, or file size
+// where sha isn't available — see repo-filter.js) are unchanged, so an
+// "Update" only re-reads and re-summarizes what actually changed. Pass 2
+// (synthesis) still runs on the merged summary set whenever anything did
+// change, since the wiki pages are holistic documents — but if literally
+// nothing changed (including the README), it's skipped entirely and the
+// prior WikiData is returned as-is.
+export async function generateWiki(adapter, repoMeta, settings, onProgress = () => {}, previousWikiData = null) {
   try {
     onProgress({ phase: "fetching-tree", owner: repoMeta.owner, repo: repoMeta.repo });
 
@@ -61,21 +69,33 @@ export async function generateWiki(adapter, repoMeta, settings, onProgress = () 
       throw new WikiGenerationError("No usable source files were found in this repository after filtering.");
     }
 
+    const prevManifestByName = new Map((previousWikiData?.moduleManifest || []).map((m) => [m.name, m]));
+
     onProgress({ phase: "pass1", owner: repoMeta.owner, repo: repoMeta.repo, moduleTotal: modules.length, moduleDone: 0 });
 
     let moduleDone = 0;
+    let reusedCount = 0;
+    const newManifest = [];
     const moduleSummaries = await runWithConcurrency(modules, 3, async (mod) => {
-      const filesWithContent = await runWithConcurrency(mod.files, 4, (f) =>
-        adapter.fetchRawFile(fullRef, f.path)
-      );
-      const { messages } = buildModuleSummaryPrompt(mod, filesWithContent, fullRef);
+      const signature = moduleSignature(mod);
+      const prev = prevManifestByName.get(mod.name);
+
       let summary;
-      try {
-        const { content } = await chatCompletion({ ...settings, messages });
-        summary = validateModuleSummary(extractJson(content), mod.name);
-      } catch (err) {
-        summary = validateModuleSummary(null, mod.name);
+      if (prev && prev.signature === signature) {
+        summary = prev.summary;
+        reusedCount++;
+      } else {
+        const filesWithContent = await runWithConcurrency(mod.files, 4, (f) => adapter.fetchRawFile(fullRef, f.path));
+        const { messages } = buildModuleSummaryPrompt(mod, filesWithContent, fullRef);
+        try {
+          const { content } = await chatCompletion({ ...settings, messages });
+          summary = validateModuleSummary(extractJson(content), mod.name);
+        } catch (err) {
+          summary = validateModuleSummary(null, mod.name);
+        }
       }
+
+      newManifest.push({ name: mod.name, signature, summary });
       moduleDone++;
       onProgress({
         phase: "pass1",
@@ -83,10 +103,22 @@ export async function generateWiki(adapter, repoMeta, settings, onProgress = () 
         repo: repoMeta.repo,
         moduleTotal: modules.length,
         moduleDone,
+        moduleReused: reusedCount,
         moduleName: mod.name,
       });
       return summary;
     });
+
+    const readmeUnchanged = previousWikiData && previousWikiData.readme === (readme || null);
+    const moduleSetUnchanged =
+      previousWikiData &&
+      newManifest.length === prevManifestByName.size &&
+      newManifest.every((m) => prevManifestByName.get(m.name)?.signature === m.signature);
+
+    if (previousWikiData && readmeUnchanged && moduleSetUnchanged) {
+      onProgress({ phase: "up-to-date", owner: repoMeta.owner, repo: repoMeta.repo });
+      return { ...previousWikiData, moduleManifest: newManifest, readme: readme || null, checked_at: new Date().toISOString(), unchanged: true };
+    }
 
     onProgress({ phase: "pass2", owner: repoMeta.owner, repo: repoMeta.repo });
 
@@ -117,7 +149,11 @@ export async function generateWiki(adapter, repoMeta, settings, onProgress = () 
       repo: repoMeta.repo,
       branch,
       generated_at: new Date().toISOString(),
+      checked_at: new Date().toISOString(),
       pages: wiki.pages,
+      moduleManifest: newManifest,
+      readme: readme || null,
+      qaHistory: previousWikiData?.qaHistory || [],
     };
   } catch (err) {
     if (err instanceof WikiGenerationError) throw err;

@@ -8,8 +8,9 @@ A DeepWiki-style wiki generator for public Git repositories — pure frontend (v
 2. It filters out noise (binaries, lockfiles, `node_modules`, etc.) and groups the remaining files into modules by top-level directory.
 3. **Pass 1**: an LLM call per module produces a short structured summary.
 4. **Pass 2**: a final LLM call synthesizes those summaries + the README into a multi-page wiki (Overview, Architecture with a Mermaid diagram, and one page per significant module).
-5. The result is cached in `localStorage` keyed by `host/owner/repo/branch`. Revisiting a repo loads instantly; "Regenerate" re-runs the pipeline.
+5. The result is cached in `localStorage` keyed by `host/owner/repo/branch`. Revisiting a repo loads instantly.
 6. The **Ask** panel lets you ask follow-up questions grounded in the generated wiki, with the LLM able to call `search_files`/`fetch_file` tools to pull in live source when the wiki doesn't cover enough detail (OpenAI-compatible providers only — see the provider table below).
+7. **↻ Update** re-checks the repo and only re-reads/re-summarizes modules whose files actually changed since last time (compared by each file's content hash — GitHub/GitLab/Gitee — or size where no hash is available — Bitbucket Cloud; Bitbucket Server's file listing exposes neither, so it can only detect added/removed files there, not in-place edits). If nothing changed at all, it's a single cheap API call with zero LLM calls. **Full Rebuild** discards the cached summaries and regenerates everything from scratch.
 
 You need your own LLM API endpoint — configure it via the ⚙️ settings icon.
 

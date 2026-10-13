@@ -43,7 +43,7 @@ export function classifyFiles(
     .filter((e) => e.type === "blob")
     .filter((e) => !isNoise(e.path))
     .filter((e) => typeof e.size !== "number" || e.size <= maxFileBytes)
-    .map((e) => ({ path: e.path, size: e.size || 0 }));
+    .map((e) => ({ path: e.path, size: e.size || 0, sha: e.sha }));
 
   candidates.sort((a, b) => b.size - a.size);
 
@@ -56,6 +56,26 @@ export function classifyFiles(
     totalBytes += f.size;
   }
   return result;
+}
+
+// A stable per-file identity signal for incremental-update change detection.
+// Prefers content hash (GitHub/GitLab/Gitee all expose a blob sha) over size
+// (Bitbucket Cloud's only available signal) over "unknown" (Bitbucket Server's
+// /files endpoint returns bare paths with neither — meaning incremental update
+// can detect added/removed files there, but not in-place edits to existing ones).
+export function fileSignature(file) {
+  if (file.sha) return `sha:${file.sha}`;
+  if (typeof file.size === "number") return `size:${file.size}`;
+  return "unknown";
+}
+
+// A single string capturing a module's exact file set + each file's content
+// signature. Unchanged iff this string is identical to the prior run's.
+export function moduleSignature(module) {
+  return module.files
+    .map((f) => `${f.path}:${fileSignature(f)}`)
+    .sort()
+    .join("|");
 }
 
 export function groupIntoModules(

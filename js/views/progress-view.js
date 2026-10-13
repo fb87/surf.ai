@@ -1,9 +1,10 @@
 import { el, clear } from "../utils/dom.js";
 
-const STEP_ORDER = ["fetching-tree", "pass1", "pass2"];
+const PHASE_ORDER = ["fetching-tree", "pass1", "pass2", "up-to-date"];
+const RENDERED_STEPS = ["fetching-tree", "pass1", "pass2"];
 const STEP_LABELS = {
   "fetching-tree": "Fetching repository tree",
-  pass1: "Summarizing modules",
+  pass1: "Checking modules for changes",
   pass2: "Synthesizing wiki",
 };
 
@@ -12,9 +13,9 @@ export function mountProgressView(root, state) {
 
   const list = el("ul", { class: "progress-list" });
 
-  for (const stepKey of STEP_ORDER) {
-    const order = STEP_ORDER.indexOf(stepKey);
-    const currentOrder = STEP_ORDER.indexOf(state.phase);
+  for (const stepKey of RENDERED_STEPS) {
+    const order = PHASE_ORDER.indexOf(stepKey);
+    const currentOrder = PHASE_ORDER.indexOf(state.phase);
     let status = "pending";
     if (order < currentOrder) status = "done";
     else if (order === currentOrder) status = "active";
@@ -30,7 +31,10 @@ export function mountProgressView(root, state) {
     list.appendChild(item);
 
     if (stepKey === "pass1" && status === "active" && state.moduleDone != null) {
-      item.appendChild(el("span", { class: "card-meta" }, ` (${state.moduleDone}/${state.moduleTotal}${state.moduleName ? `: ${state.moduleName}` : ""})`));
+      const reusedText = state.moduleReused ? `, ${state.moduleReused} reused` : "";
+      item.appendChild(
+        el("span", { class: "card-meta" }, ` (${state.moduleDone}/${state.moduleTotal}${reusedText}${state.moduleName ? `: ${state.moduleName}` : ""})`)
+      );
     }
   }
 

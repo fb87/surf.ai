@@ -27,7 +27,7 @@ function initTheme() {
   });
 }
 
-async function runGeneration(adapter, repoMeta, { bypassCache } = {}) {
+async function runGeneration(adapter, repoMeta, { bypassCache, previousWikiData } = {}) {
   if (!bypassCache) {
     let branchForLookup = repoMeta.branch;
     if (!branchForLookup) {
@@ -56,12 +56,20 @@ async function runGeneration(adapter, repoMeta, { bypassCache } = {}) {
 
   const settings = getSettings();
   try {
-    const wiki = await generateWiki(adapter, repoMeta, settings, (progress) => {
-      setState({ progress });
-    });
+    const wiki = await generateWiki(
+      adapter,
+      repoMeta,
+      settings,
+      (progress) => setState({ progress }),
+      previousWikiData
+    );
     const saveResult = saveCachedWiki(wiki);
     if (!saveResult.ok) {
       console.warn("Could not cache wiki:", saveResult.reason);
+    }
+    if (wiki.unchanged) {
+      const reused = wiki.moduleManifest?.length ?? 0;
+      alert(`No changes detected in ${repoMeta.owner}/${repoMeta.repo} — all ${reused} module${reused === 1 ? "" : "s"} unchanged since the last update.`);
     }
     setState({ view: "wiki", wiki, wikiActivePageId: wiki.pages[0]?.id || null });
   } catch (err) {
@@ -125,11 +133,23 @@ function render() {
   } else if (state.view === "wiki") {
     mountWikiView(viewRoot, state.wiki, state.wikiActivePageId, {
       onBack: () => setState({ view: "landing" }),
-      onRegenerate: () => {
-        if (!confirm(`Regenerate the wiki for ${state.wiki.owner}/${state.wiki.repo}? This will overwrite the cached version.`)) return;
+      onUpdate: () => {
         const adapter = getAdapterById(state.wiki.providerId);
         if (!adapter) {
-          setState({ view: "error", error: { message: `Unknown provider "${state.wiki.providerId}" — can't regenerate this wiki.` } });
+          setState({ view: "error", error: { message: `Unknown provider "${state.wiki.providerId}" — can't update this wiki.` } });
+          return;
+        }
+        runGeneration(
+          adapter,
+          { host: state.wiki.host, owner: state.wiki.owner, repo: state.wiki.repo, branch: state.wiki.branch, providerId: state.wiki.providerId },
+          { bypassCache: true, previousWikiData: state.wiki }
+        );
+      },
+      onFullRebuild: () => {
+        if (!confirm(`Fully rebuild the wiki for ${state.wiki.owner}/${state.wiki.repo} from scratch, re-reading and re-summarizing every module? This overwrites the cached version.`)) return;
+        const adapter = getAdapterById(state.wiki.providerId);
+        if (!adapter) {
+          setState({ view: "error", error: { message: `Unknown provider "${state.wiki.providerId}" — can't rebuild this wiki.` } });
           return;
         }
         runGeneration(

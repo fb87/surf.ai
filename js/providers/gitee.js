@@ -41,7 +41,7 @@ export async function fetchDefaultBranch(ref) {
 export async function fetchTree(ref) {
   const res = await providerFetch(`${apiBase()}/repos/${ref.owner}/${ref.repo}/git/trees/${encodeURIComponent(ref.branch)}?recursive=1`);
   const json = await res.json();
-  const entries = (json.tree || []).map((e) => ({ path: e.path, type: e.type, size: e.size }));
+  const entries = (json.tree || []).map((e) => ({ path: e.path, type: e.type, size: e.size, sha: e.sha }));
   return { entries, truncated: Boolean(json.truncated) };
 }
 

@@ -60,7 +60,7 @@ export async function fetchTree(ref) {
     const res = await providerFetch(url);
     const batch = await res.json();
     for (const e of batch) {
-      entries.push({ path: e.path, type: e.type === "tree" ? "tree" : "blob", size: undefined });
+      entries.push({ path: e.path, type: e.type === "tree" ? "tree" : "blob", size: undefined, sha: e.id });
     }
     if (batch.length < PER_PAGE) break;
     if (page === MAX_TREE_PAGES) truncated = true;
