@@ -196,3 +196,47 @@ export function saveTheme(theme) {
     /* ignore */
   }
 }
+
+// ---- Backup export/import ----
+// Covers everything this app stores: settings, connection history, cached
+// wikis + index, and theme. Stored/restored as raw strings (localStorage's
+// native type), keyed by their actual localStorage key, so this stays valid
+// regardless of how individual values' JSON shapes evolve over time.
+
+const APP_KEY_PREFIX = "wikigen.";
+
+function allAppKeys() {
+  const keys = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith(APP_KEY_PREFIX)) keys.push(key);
+  }
+  return keys;
+}
+
+export function exportAllData() {
+  const data = {};
+  for (const key of allAppKeys()) {
+    data[key] = localStorage.getItem(key);
+  }
+  return { version: 1, exportedAt: new Date().toISOString(), data };
+}
+
+// Full restore, not a merge: existing app data is cleared first so the
+// result exactly matches the backup rather than a mix of old and new.
+export function importAllData(payload) {
+  if (!payload || typeof payload !== "object" || typeof payload.data !== "object" || payload.data === null) {
+    throw new Error("That doesn't look like a surf.ai backup file.");
+  }
+
+  for (const key of allAppKeys()) localStorage.removeItem(key);
+
+  let count = 0;
+  for (const [key, value] of Object.entries(payload.data)) {
+    if (typeof key !== "string" || !key.startsWith(APP_KEY_PREFIX)) continue;
+    if (typeof value !== "string") continue;
+    localStorage.setItem(key, value);
+    count++;
+  }
+  return count;
+}

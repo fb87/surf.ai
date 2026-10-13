@@ -1,5 +1,5 @@
 import { el, clear } from "../utils/dom.js";
-import { getSettings, saveSettings, isSettingsValid, listConnections, deleteConnection } from "../storage/cache.js";
+import { getSettings, saveSettings, isSettingsValid, listConnections, deleteConnection, exportAllData, importAllData } from "../storage/cache.js";
 
 const dialog = document.getElementById("settings-modal");
 let onSavedCallback = null;
@@ -120,6 +120,7 @@ function render(notice) {
     ])
   );
   body.appendChild(errorBox);
+  body.appendChild(renderBackupSection(notice));
   dialog.appendChild(body);
 
   dialog.appendChild(
@@ -150,6 +151,69 @@ function render(notice) {
       ),
     ])
   );
+}
+
+function renderBackupSection(notice) {
+  const fileInput = el("input", {
+    type: "file",
+    accept: "application/json",
+    class: "hidden",
+    onChange: (e) => handleImportFile(e.target.files[0], notice),
+  });
+
+  return el("div", { class: "field" }, [
+    el("label", {}, "Backup & Restore"),
+    el(
+      "div",
+      { class: "field-hint" },
+      "Exports or restores everything this app stores locally — settings, connection history, and cached wikis — as a JSON file. It contains your API key(s) in plain text, so store it somewhere safe."
+    ),
+    el("div", { style: "display:flex;gap:8px;margin-top:6px;" }, [
+      el("button", { class: "btn btn-ghost", type: "button", onClick: handleExport }, "⬇ Export Backup"),
+      el("button", { class: "btn btn-ghost", type: "button", onClick: () => fileInput.click() }, "⬆ Import Backup"),
+      fileInput,
+    ]),
+  ]);
+}
+
+function handleExport() {
+  const payload = exportAllData();
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = el("a", { href: url, download: `surfai-backup-${new Date().toISOString().slice(0, 10)}.json` });
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function handleImportFile(file, notice) {
+  if (!file) return;
+
+  let payload;
+  try {
+    payload = JSON.parse(await file.text());
+  } catch {
+    alert("That file isn't valid JSON.");
+    return;
+  }
+
+  const itemCount = payload?.data && typeof payload.data === "object" ? Object.keys(payload.data).length : 0;
+  const exportedAtText = payload?.exportedAt ? new Date(payload.exportedAt).toLocaleString() : "an unknown date";
+  const confirmed = confirm(
+    `This will replace ALL current settings and cached wikis with this backup (${itemCount} items, exported ${exportedAtText}). This can't be undone. Continue?`
+  );
+  if (!confirmed) return;
+
+  try {
+    importAllData(payload);
+  } catch (err) {
+    alert(`Couldn't import: ${err.message}`);
+    return;
+  }
+
+  alert("Backup restored. The page will now reload.");
+  location.reload();
 }
 
 export function openSettings({ notice, onSaved } = {}) {
