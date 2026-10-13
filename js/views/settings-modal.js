@@ -1,5 +1,5 @@
 import { el, clear } from "../utils/dom.js";
-import { getSettings, saveSettings, isSettingsValid } from "../storage/cache.js";
+import { getSettings, saveSettings, isSettingsValid, listConnections, deleteConnection } from "../storage/cache.js";
 
 const dialog = document.getElementById("settings-modal");
 let onSavedCallback = null;
@@ -51,6 +51,52 @@ function render(notice) {
 
   const body = el("div", { class: "modal-body" });
   if (notice) body.appendChild(el("div", { class: "modal-notice" }, notice));
+
+  const history = listConnections();
+  if (history.length > 0) {
+    const historyList = el("div", { class: "connection-history" });
+    for (const conn of history) {
+      let hostLabel = conn.baseUrl;
+      try {
+        hostLabel = new URL(conn.baseUrl).hostname;
+      } catch {
+        /* keep raw baseUrl if unparsable */
+      }
+      historyList.appendChild(
+        el("div", { class: "connection-row" }, [
+          el(
+            "button",
+            {
+              type: "button",
+              class: "btn btn-ghost connection-row-use",
+              onClick: () => {
+                baseUrlInput.value = conn.baseUrl;
+                apiKeyInput.value = conn.apiKey || "";
+                modelInput.value = conn.model;
+              },
+            },
+            [el("span", { class: "connection-row-model" }, conn.model), el("span", { class: "connection-row-host" }, hostLabel)]
+          ),
+          el(
+            "button",
+            {
+              type: "button",
+              class: "btn btn-ghost btn-icon btn-danger",
+              title: "Remove from history",
+              onClick: () => {
+                deleteConnection(conn.baseUrl, conn.model);
+                render(notice); // dialog is already open; just rebuild its content
+              },
+            },
+            "✕"
+          ),
+        ])
+      );
+    }
+    body.appendChild(
+      el("div", { class: "field" }, [el("label", {}, "Recent connections"), historyList])
+    );
+  }
 
   body.appendChild(
     el("div", { class: "field" }, [

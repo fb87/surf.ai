@@ -1,4 +1,6 @@
 const SETTINGS_KEY = "wikigen.settings.v1";
+const CONNECTIONS_KEY = "wikigen.connections.v1";
+const MAX_CONNECTION_HISTORY = 20;
 const INDEX_KEY = "wikigen.cache.v1.index";
 const REPO_KEY_PREFIX = "wikigen.cache.v1.repo:";
 
@@ -32,7 +34,33 @@ export function getSettings() {
 export function saveSettings(settings) {
   const value = { ...settings, updatedAt: new Date().toISOString() };
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(value));
+  if (value.baseUrl && value.model) recordConnection(value);
   return value;
+}
+
+// ---- Connection history ----
+// Remembers recently-used {baseUrl, apiKey, model} combos so switching
+// between providers doesn't mean retyping a key each time.
+
+function recordConnection({ baseUrl, apiKey, model }) {
+  const list = listConnections().filter((c) => !(c.baseUrl === baseUrl && c.model === model));
+  list.unshift({ baseUrl, apiKey, model, lastUsed: new Date().toISOString() });
+  localStorage.setItem(CONNECTIONS_KEY, JSON.stringify(list.slice(0, MAX_CONNECTION_HISTORY)));
+}
+
+export function listConnections() {
+  try {
+    const raw = localStorage.getItem(CONNECTIONS_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+export function deleteConnection(baseUrl, model) {
+  const list = listConnections().filter((c) => !(c.baseUrl === baseUrl && c.model === model));
+  localStorage.setItem(CONNECTIONS_KEY, JSON.stringify(list));
 }
 
 export function isSettingsValid(settings) {
