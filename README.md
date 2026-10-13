@@ -1,16 +1,30 @@
 # surf.ai
 
-A DeepWiki-style wiki generator for public GitHub repositories — pure frontend (vanilla JS + CSS), no backend, no build step. State (settings and generated wikis) is cached entirely in your browser's `localStorage`.
+A DeepWiki-style wiki generator for public Git repositories — pure frontend (vanilla JS + CSS), no backend, no build step. State (settings and generated wikis) is cached entirely in your browser's `localStorage`.
 
 ## How it works
 
-1. Paste a public GitHub repo URL. The app fetches its file tree and README directly from `api.github.com` / `raw.githubusercontent.com` (unauthenticated, 60 requests/hour).
+1. Paste a public repo URL — GitHub, GitHub Enterprise, GitLab (.com or self-hosted), Bitbucket Cloud, Bitbucket Server/Data Center, or Gitee. The app fetches its file tree and README directly from that host's REST API (unauthenticated — see [Supported Git hosts](#supported-git-hosts)).
 2. It filters out noise (binaries, lockfiles, `node_modules`, etc.) and groups the remaining files into modules by top-level directory.
 3. **Pass 1**: an LLM call per module produces a short structured summary.
 4. **Pass 2**: a final LLM call synthesizes those summaries + the README into a multi-page wiki (Overview, Architecture with a Mermaid diagram, and one page per significant module).
-5. The result is cached in `localStorage` keyed by `owner/repo/branch`. Revisiting a repo loads instantly; "Regenerate" re-runs the pipeline.
+5. The result is cached in `localStorage` keyed by `host/owner/repo/branch`. Revisiting a repo loads instantly; "Regenerate" re-runs the pipeline.
+6. The **Ask** panel lets you ask follow-up questions grounded in the generated wiki, with the LLM able to call `search_files`/`fetch_file` tools to pull in live source when the wiki doesn't cover enough detail (OpenAI-compatible providers only — see the provider table below).
 
 You need your own LLM API endpoint — configure it via the ⚙️ settings icon.
+
+## Supported Git hosts
+
+All unauthenticated/public-repo access only — no token support. A pasted URL's host is auto-detected for the four public clouds; anything else (a custom domain) prompts you to pick which of the three "custom domain" providers it is.
+
+| Provider | Host(s) | API | Notes |
+|---|---|---|---|
+| **GitHub** | `github.com` | REST + Contents API | Single-call recursive tree fetch. Raw file content via `raw.githubusercontent.com`. |
+| **GitHub Enterprise** | any custom domain (picked explicitly) | same API under `/api/v3` | Same adapter as github.com, just a different base URL. No separate raw CDN, so file content goes through the Contents API with a raw Accept header instead. |
+| **GitLab** | `gitlab.com`, or any custom domain (self-hosted) | REST API v4 | Paginated tree fetch (GitLab doesn't offer a single-call recursive tree like GitHub). Only top-level `owner/repo` projects are supported — nested subgroups (`group/subgroup/project`) aren't handled. |
+| **Bitbucket Cloud** | `bitbucket.org` | REST API 2.0 | No single-call recursive tree — walks directories one API call at a time, capped at 60 calls. More rate-limit-prone than the others as a result. |
+| **Bitbucket Server / Data Center** | any custom domain (picked explicitly) | REST API 1.0 | Structurally unrelated to Bitbucket Cloud's API. **Untested against a real instance** (none available) — implemented per Atlassian's published docs. Most self-hosted instances require auth even for nominally public repos, which isn't supported here, and CORS is admin/version-dependent, so this may simply not work on a given deployment — errors surface clearly rather than hanging. |
+| **Gitee** | `gitee.com` | REST API v5 | Modeled closely on GitHub's API. File content comes back base64-encoded via the contents endpoint. |
 
 ## Connecting a provider
 
@@ -48,10 +62,10 @@ This is dev tooling only — the app's actual source stays plain, buildless ES m
 
 ## Project layout
 
-- `js/github/` — GitHub API client + file/module filtering
-- `js/llm/` — OpenAI-compatible chat completions client
-- `js/pipeline/` — two-pass wiki generation orchestrator, prompts, JSON parsing/validation
+- `js/providers/` — one adapter per Git host (`github.js`, `gitlab.js`, `bitbucket-cloud.js`, `bitbucket-server.js`, `gitee.js`), a shared error class and readme-probing helper (`common.js`), host detection/registry (`detect.js`), and provider-agnostic file/module filtering (`repo-filter.js`)
+- `js/llm/` — chat completions client (OpenAI-compatible wire format, with a native-endpoint adapter for Anthropic)
+- `js/pipeline/` — two-pass wiki generation orchestrator, prompts, JSON parsing/validation, and the Ask Q&A tool-calling loop (`qa.js`)
 - `js/render/` — markdown (marked.js) + Mermaid rendering, sanitized with DOMPurify
 - `js/storage/` — localStorage settings + wiki cache
-- `js/views/` — landing, progress, wiki, and settings UI
+- `js/views/` — landing, progress, wiki, settings, and provider-picker UI
 - `js/vendor/` — vendored third-party libraries (marked, mermaid, DOMPurify) — no CDN dependency

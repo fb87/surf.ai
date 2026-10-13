@@ -1,5 +1,5 @@
 import { chatCompletion } from "../llm/llm-client.js";
-import { fetchTree, fetchRawFile } from "../github/github-client.js";
+import { getAdapterById } from "../providers/detect.js";
 
 const CONTEXT_BUDGET_CHARS = 40_000;
 const MAX_HISTORY_TURNS = 6;
@@ -7,19 +7,16 @@ const MAX_TOOL_ITERATIONS = 5;
 const MAX_SEARCH_RESULTS = 30;
 const MAX_FILE_FETCH_CHARS = 20_000;
 
-const treeCache = new Map(); // "owner/repo/branch" -> Promise<TreeEntry[]>
+const treeCache = new Map(); // "host/owner/repo/branch" -> Promise<TreeEntry[]>
 
 function treeCacheKey(wikiData) {
-  return `${wikiData.owner.toLowerCase()}/${wikiData.repo.toLowerCase()}/${wikiData.branch}`;
+  return `${wikiData.host.toLowerCase()}/${wikiData.owner.toLowerCase()}/${wikiData.repo.toLowerCase()}/${wikiData.branch}`;
 }
 
-async function getTree(wikiData) {
+async function getTree(adapter, wikiData) {
   const key = treeCacheKey(wikiData);
   if (!treeCache.has(key)) {
-    treeCache.set(
-      key,
-      fetchTree(wikiData.owner, wikiData.repo, wikiData.branch).then((r) => r.entries)
-    );
+    treeCache.set(key, adapter.fetchTree(wikiData).then((r) => r.entries));
   }
   return treeCache.get(key);
 }
@@ -51,7 +48,7 @@ const TOOLS = [
   },
 ];
 
-async function executeTool(name, argsJson, wikiData) {
+async function executeTool(name, argsJson, adapter, wikiData) {
   let args;
   try {
     args = argsJson ? JSON.parse(argsJson) : {};
@@ -61,7 +58,7 @@ async function executeTool(name, argsJson, wikiData) {
 
   if (name === "search_files") {
     try {
-      const entries = await getTree(wikiData);
+      const entries = await getTree(adapter, wikiData);
       const q = (args.query || "").toLowerCase();
       const matches = entries.filter((e) => e.type === "blob" && e.path.toLowerCase().includes(q)).slice(0, MAX_SEARCH_RESULTS);
       if (matches.length === 0) return `No files found matching "${args.query}".`;
@@ -73,7 +70,7 @@ async function executeTool(name, argsJson, wikiData) {
 
   if (name === "fetch_file") {
     try {
-      return await fetchRawFile(wikiData.owner, wikiData.repo, wikiData.branch, args.path, MAX_FILE_FETCH_CHARS);
+      return await adapter.fetchRawFile(wikiData, args.path, MAX_FILE_FETCH_CHARS);
     } catch (err) {
       return `Error fetching "${args.path}": ${err.message}`;
     }
@@ -97,12 +94,13 @@ export function buildWikiContext(wikiData) {
 }
 
 export async function askQuestion({ wikiData, question, history, settings }) {
+  const adapter = getAdapterById(wikiData.providerId);
   const context = buildWikiContext(wikiData);
   const systemPrompt =
-    `You are answering developer questions about the GitHub repository ${wikiData.owner}/${wikiData.repo} ` +
-    `(branch: ${wikiData.branch}). Below is auto-generated wiki documentation for the repo. It may not cover ` +
-    `everything — if a question needs detail the documentation doesn't have, use the search_files and fetch_file ` +
-    `tools to look at the actual source before answering, rather than guessing.\n\n${context}`;
+    `You are answering developer questions about the repository ${wikiData.owner}/${wikiData.repo} ` +
+    `(host: ${wikiData.host}, branch: ${wikiData.branch}). Below is auto-generated wiki documentation for the repo. ` +
+    `It may not cover everything — if a question needs detail the documentation doesn't have, use the search_files ` +
+    `and fetch_file tools to look at the actual source before answering, rather than guessing.\n\n${context}`;
 
   const recentHistory = history.slice(-MAX_HISTORY_TURNS * 2).map((m) => ({ role: m.role, content: m.content }));
   const messages = [{ role: "system", content: systemPrompt }, ...recentHistory, { role: "user", content: question }];
@@ -117,7 +115,9 @@ export async function askQuestion({ wikiData, question, history, settings }) {
     messages.push({ role: "assistant", content: content || null, tool_calls: toolCalls.map((tc) => ({ id: tc.id, type: "function", function: { name: tc.name, arguments: tc.arguments } })) });
 
     for (const tc of toolCalls) {
-      const result = await executeTool(tc.name, tc.arguments, wikiData);
+      const result = adapter
+        ? await executeTool(tc.name, tc.arguments, adapter, wikiData)
+        : `Error: this wiki's repository host (${wikiData.providerId}) doesn't support live file lookups.`;
       messages.push({ role: "tool", tool_call_id: tc.id, content: result });
     }
   }

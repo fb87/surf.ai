@@ -1,10 +1,11 @@
 import { getState, setState, subscribe } from "./state.js";
 import { getSettings, isSettingsValid, saveCachedWiki, getCachedWiki, listCachedRepos, getTheme, saveTheme } from "./storage/cache.js";
 import { openSettings } from "./views/settings-modal.js";
+import { openProviderPicker } from "./views/provider-picker-modal.js";
 import { mountLandingView } from "./views/landing-view.js";
 import { mountProgressView, mountProgressError } from "./views/progress-view.js";
 import { mountWikiView } from "./views/wiki-view.js";
-import { parseRepoUrl } from "./github/github-client.js";
+import { resolveProvider, resolveWithProvider, getAdapterById } from "./providers/detect.js";
 import { generateWiki } from "./pipeline/wiki-generator.js";
 import { clear } from "./utils/dom.js";
 import { mapErrorToMessage } from "./utils/errors.js";
@@ -26,17 +27,20 @@ function initTheme() {
   });
 }
 
-async function runGeneration(repoMeta, { bypassCache } = {}) {
+async function runGeneration(adapter, repoMeta, { bypassCache } = {}) {
   if (!bypassCache) {
     let branchForLookup = repoMeta.branch;
     if (!branchForLookup) {
       const match = listCachedRepos().find(
-        (e) => e.owner.toLowerCase() === repoMeta.owner.toLowerCase() && e.repo.toLowerCase() === repoMeta.repo.toLowerCase()
+        (e) =>
+          e.host.toLowerCase() === repoMeta.host.toLowerCase() &&
+          e.owner.toLowerCase() === repoMeta.owner.toLowerCase() &&
+          e.repo.toLowerCase() === repoMeta.repo.toLowerCase()
       );
       if (match) branchForLookup = match.branch;
     }
     if (branchForLookup) {
-      const cached = getCachedWiki(repoMeta.owner, repoMeta.repo, branchForLookup);
+      const cached = getCachedWiki(repoMeta.host, repoMeta.owner, repoMeta.repo, branchForLookup);
       if (cached) {
         setState({ view: "wiki", wiki: cached, wikiActivePageId: cached.pages[0]?.id || null });
         return;
@@ -52,7 +56,7 @@ async function runGeneration(repoMeta, { bypassCache } = {}) {
 
   const settings = getSettings();
   try {
-    const wiki = await generateWiki(repoMeta, settings, (progress) => {
+    const wiki = await generateWiki(adapter, repoMeta, settings, (progress) => {
       setState({ progress });
     });
     const saveResult = saveCachedWiki(wiki);
@@ -66,25 +70,44 @@ async function runGeneration(repoMeta, { bypassCache } = {}) {
   }
 }
 
+function proceedWithRepo(adapter, ref) {
+  const repoMeta = { ...ref, providerId: adapter.id };
+  const settings = getSettings();
+  if (!isSettingsValid(settings)) {
+    openSettings({
+      notice: "Configure your API connection to generate a wiki.",
+      onSaved: () => runGeneration(adapter, repoMeta),
+    });
+    return;
+  }
+  runGeneration(adapter, repoMeta);
+}
+
 function handleGenerateRepo(rawInput) {
-  let repoMeta;
+  let resolved;
   try {
-    repoMeta = parseRepoUrl(rawInput);
+    resolved = resolveProvider(rawInput);
   } catch (err) {
     setState({ view: "error", error: { message: err.message } });
     return;
   }
 
-  const settings = getSettings();
-  if (!isSettingsValid(settings)) {
-    openSettings({
-      notice: "Configure your API connection to generate a wiki.",
-      onSaved: () => runGeneration(repoMeta),
+  if (resolved.needsProviderSelection) {
+    openProviderPicker({
+      host: resolved.host,
+      onSelect: (providerId) => {
+        try {
+          const r = resolveWithProvider(rawInput, providerId);
+          proceedWithRepo(r.adapter, r.ref);
+        } catch (err) {
+          setState({ view: "error", error: { message: err.message } });
+        }
+      },
     });
     return;
   }
 
-  runGeneration(repoMeta);
+  proceedWithRepo(resolved.adapter, resolved.ref);
 }
 
 function render() {
@@ -104,7 +127,16 @@ function render() {
       onBack: () => setState({ view: "landing" }),
       onRegenerate: () => {
         if (!confirm(`Regenerate the wiki for ${state.wiki.owner}/${state.wiki.repo}? This will overwrite the cached version.`)) return;
-        runGeneration({ owner: state.wiki.owner, repo: state.wiki.repo, branch: state.wiki.branch }, { bypassCache: true });
+        const adapter = getAdapterById(state.wiki.providerId);
+        if (!adapter) {
+          setState({ view: "error", error: { message: `Unknown provider "${state.wiki.providerId}" — can't regenerate this wiki.` } });
+          return;
+        }
+        runGeneration(
+          adapter,
+          { host: state.wiki.host, owner: state.wiki.owner, repo: state.wiki.repo, branch: state.wiki.branch, providerId: state.wiki.providerId },
+          { bypassCache: true }
+        );
       },
     });
   }

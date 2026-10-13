@@ -74,7 +74,7 @@ export function mountWikiView(root, wikiData, activePageId, { onRegenerate, onBa
       el(
         "div",
         { class: "card-meta" },
-        `${wikiData.owner}/${wikiData.repo} · ${wikiData.branch} · generated ${new Date(wikiData.generated_at).toLocaleString()}`
+        `${wikiData.host}/${wikiData.owner}/${wikiData.repo} · ${wikiData.branch} · generated ${new Date(wikiData.generated_at).toLocaleString()}`
       ),
       el("button", { class: "btn btn-ghost", type: "button", onClick: onRegenerate }, "↻ Regenerate"),
     ]

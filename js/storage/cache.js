@@ -2,8 +2,17 @@ const SETTINGS_KEY = "wikigen.settings.v1";
 const INDEX_KEY = "wikigen.cache.v1.index";
 const REPO_KEY_PREFIX = "wikigen.cache.v1.repo:";
 
-function repoKey(owner, repo, branch) {
-  return `${REPO_KEY_PREFIX}${owner.toLowerCase()}/${repo.toLowerCase()}/${branch}`;
+function repoKey(host, owner, repo, branch) {
+  return `${REPO_KEY_PREFIX}${host.toLowerCase()}/${owner.toLowerCase()}/${repo.toLowerCase()}/${branch}`;
+}
+
+function sameRepo(entry, host, owner, repo, branch) {
+  return (
+    entry.host.toLowerCase() === host.toLowerCase() &&
+    entry.owner.toLowerCase() === owner.toLowerCase() &&
+    entry.repo.toLowerCase() === repo.toLowerCase() &&
+    entry.branch === branch
+  );
 }
 
 // ---- Settings ----
@@ -56,25 +65,21 @@ export function listCachedRepos() {
   return readIndex().sort((a, b) => new Date(b.lastAccessed) - new Date(a.lastAccessed));
 }
 
-export function getCachedWiki(owner, repo, branch) {
+export function getCachedWiki(host, owner, repo, branch) {
   try {
-    const raw = localStorage.getItem(repoKey(owner, repo, branch));
+    const raw = localStorage.getItem(repoKey(host, owner, repo, branch));
     if (!raw) return null;
     const wiki = JSON.parse(raw);
-    touchIndexEntry(owner, repo, branch);
+    touchIndexEntry(host, owner, repo, branch);
     return wiki;
   } catch {
     return null;
   }
 }
 
-function touchIndexEntry(owner, repo, branch) {
+function touchIndexEntry(host, owner, repo, branch) {
   const index = readIndex();
-  const entry = index.find(
-    (e) => e.owner.toLowerCase() === owner.toLowerCase() &&
-      e.repo.toLowerCase() === repo.toLowerCase() &&
-      e.branch === branch
-  );
+  const entry = index.find((e) => sameRepo(e, host, owner, repo, branch));
   if (entry) {
     entry.lastAccessed = new Date().toISOString();
     writeIndex(index);
@@ -82,18 +87,16 @@ function touchIndexEntry(owner, repo, branch) {
 }
 
 export function saveCachedWiki(wikiData) {
-  const key = repoKey(wikiData.owner, wikiData.repo, wikiData.branch);
+  const key = repoKey(wikiData.host, wikiData.owner, wikiData.repo, wikiData.branch);
   const serialized = JSON.stringify(wikiData);
 
   const attemptSave = () => {
     localStorage.setItem(key, serialized);
-    let index = readIndex().filter(
-      (e) => !(e.owner.toLowerCase() === wikiData.owner.toLowerCase() &&
-        e.repo.toLowerCase() === wikiData.repo.toLowerCase() &&
-        e.branch === wikiData.branch)
-    );
+    let index = readIndex().filter((e) => !sameRepo(e, wikiData.host, wikiData.owner, wikiData.repo, wikiData.branch));
     index.push({
       key,
+      providerId: wikiData.providerId,
+      host: wikiData.host,
       owner: wikiData.owner,
       repo: wikiData.repo,
       branch: wikiData.branch,
@@ -136,13 +139,9 @@ export function saveCachedWiki(wikiData) {
   }
 }
 
-export function deleteCachedWiki(owner, repo, branch) {
-  localStorage.removeItem(repoKey(owner, repo, branch));
-  const index = readIndex().filter(
-    (e) => !(e.owner.toLowerCase() === owner.toLowerCase() &&
-      e.repo.toLowerCase() === repo.toLowerCase() &&
-      e.branch === branch)
-  );
+export function deleteCachedWiki(host, owner, repo, branch) {
+  localStorage.removeItem(repoKey(host, owner, repo, branch));
+  const index = readIndex().filter((e) => !sameRepo(e, host, owner, repo, branch));
   writeIndex(index);
 }
 

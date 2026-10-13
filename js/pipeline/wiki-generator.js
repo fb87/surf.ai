@@ -1,5 +1,4 @@
-import { fetchDefaultBranch, fetchTree, fetchReadme, fetchRawFile } from "../github/github-client.js";
-import { classifyFiles, groupIntoModules } from "../github/repo-filter.js";
+import { classifyFiles, groupIntoModules } from "../providers/repo-filter.js";
 import { chatCompletion } from "../llm/llm-client.js";
 import { buildModuleSummaryPrompt, buildTreeOutline, buildSynthesisPrompt } from "./prompts.js";
 import { extractJson, validateModuleSummary, validateWikiStructure } from "./schema.js";
@@ -46,13 +45,14 @@ function buildSynthesisInput(readme, treeOutline, moduleSummaries) {
   return { readme: readmeTrunc, treeOutline: treeTrunc, moduleSummaries: included, omittedModules: omitted };
 }
 
-export async function generateWiki(repoMeta, settings, onProgress = () => {}) {
+export async function generateWiki(adapter, repoMeta, settings, onProgress = () => {}) {
   try {
     onProgress({ phase: "fetching-tree", owner: repoMeta.owner, repo: repoMeta.repo });
 
-    const branch = repoMeta.branch || (await fetchDefaultBranch(repoMeta.owner, repoMeta.repo));
-    const { entries } = await fetchTree(repoMeta.owner, repoMeta.repo, branch);
-    const readme = await fetchReadme(repoMeta.owner, repoMeta.repo, branch);
+    const branch = repoMeta.branch || (await adapter.fetchDefaultBranch(repoMeta));
+    const fullRef = { ...repoMeta, branch };
+    const { entries } = await adapter.fetchTree(fullRef);
+    const readme = await adapter.fetchReadme(fullRef);
 
     const filtered = classifyFiles(entries);
     const modules = groupIntoModules(filtered);
@@ -66,9 +66,9 @@ export async function generateWiki(repoMeta, settings, onProgress = () => {}) {
     let moduleDone = 0;
     const moduleSummaries = await runWithConcurrency(modules, 3, async (mod) => {
       const filesWithContent = await runWithConcurrency(mod.files, 4, (f) =>
-        fetchRawFile(repoMeta.owner, repoMeta.repo, branch, f.path)
+        adapter.fetchRawFile(fullRef, f.path)
       );
-      const { messages } = buildModuleSummaryPrompt(mod, filesWithContent, { ...repoMeta, branch });
+      const { messages } = buildModuleSummaryPrompt(mod, filesWithContent, fullRef);
       let summary;
       try {
         const { content } = await chatCompletion({ ...settings, messages });
@@ -92,7 +92,7 @@ export async function generateWiki(repoMeta, settings, onProgress = () => {}) {
 
     const treeOutline = buildTreeOutline(entries);
     const synthInput = buildSynthesisInput(readme, treeOutline, moduleSummaries);
-    const { messages: synthMessages } = buildSynthesisPrompt(synthInput, { ...repoMeta, branch });
+    const { messages: synthMessages } = buildSynthesisPrompt(synthInput, fullRef);
 
     const { content } = await chatCompletion({
       ...settings,
@@ -111,6 +111,8 @@ export async function generateWiki(repoMeta, settings, onProgress = () => {}) {
     }
 
     return {
+      providerId: repoMeta.providerId,
+      host: repoMeta.host,
       owner: repoMeta.owner,
       repo: repoMeta.repo,
       branch,
@@ -119,6 +121,6 @@ export async function generateWiki(repoMeta, settings, onProgress = () => {}) {
     };
   } catch (err) {
     if (err instanceof WikiGenerationError) throw err;
-    throw err; // GitHubApiError / LlmApiError pass through with their .kind intact
+    throw err; // ProviderApiError / LlmApiError pass through with their .kind intact
   }
 }

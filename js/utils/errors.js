@@ -1,18 +1,20 @@
-import { GitHubApiError } from "../github/github-client.js";
+import { ProviderApiError } from "../providers/provider-error.js";
 import { LlmApiError } from "../llm/llm-client.js";
 import { WikiGenerationError } from "../pipeline/wiki-generator.js";
 
 export function mapErrorToMessage(err) {
-  if (err instanceof GitHubApiError) {
+  if (err instanceof ProviderApiError) {
     switch (err.kind) {
       case "not_found":
         return "We couldn't find that repository (or branch). Check the URL and try again.";
       case "rate_limited":
-        return "GitHub's API rate limit was hit (60 requests/hour for unauthenticated access). Wait a bit and retry.";
+        return "The repository host's API rate limit was hit (unauthenticated access is rate-limited). Wait a bit and retry.";
+      case "unauthorized":
+        return "That host rejected the request (401/403) — it likely requires authentication, which isn't supported for repository hosts, only public/anonymous access.";
       case "network":
-        return "Network error reaching GitHub. Check your connection and try again.";
+        return "Network error reaching the repository host. Check your connection and try again.";
       default:
-        return `GitHub API returned an unexpected error${err.status ? ` (status ${err.status})` : ""}.`;
+        return `The repository host returned an unexpected error${err.status ? ` (status ${err.status})` : ""}.`;
     }
   }
   if (err instanceof LlmApiError) {

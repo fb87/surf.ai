@@ -10,8 +10,8 @@ export function mountLandingView(root, { onGenerateRepo }) {
 
   const input = el("input", {
     type: "text",
-    placeholder: "github.com/owner/repo",
-    "aria-label": "GitHub repository URL",
+    placeholder: "github.com/owner/repo, gitlab.com/owner/repo, bitbucket.org/owner/repo…",
+    "aria-label": "Git repository URL",
   });
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") submit();
@@ -22,7 +22,7 @@ export function mountLandingView(root, { onGenerateRepo }) {
   function submit() {
     const value = input.value.trim();
     if (!value) {
-      errorBox.textContent = "Enter a GitHub repository URL, e.g. github.com/owner/repo";
+      errorBox.textContent = "Enter a repository URL, e.g. github.com/owner/repo";
       errorBox.classList.remove("hidden");
       return;
     }
@@ -38,7 +38,7 @@ export function mountLandingView(root, { onGenerateRepo }) {
   const cached = listCachedRepos();
   const list = el("div", { class: "cached-list" });
   if (cached.length === 0) {
-    list.appendChild(el("div", { class: "empty-state" }, "No repositories generated yet. Paste a GitHub URL above to get started."));
+    list.appendChild(el("div", { class: "empty-state" }, "No repositories generated yet. Paste a URL above to get started."));
   } else {
     list.appendChild(el("h2", {}, "Previously Generated"));
     for (const entry of cached) {
@@ -48,7 +48,7 @@ export function mountLandingView(root, { onGenerateRepo }) {
 
   root.appendChild(
     el("div", { class: "landing" }, [
-      el("h1", {}, "Generate a wiki for any public GitHub repo"),
+      el("h1", {}, "Generate a wiki for any public Git repo"),
       el("p", { class: "subtitle" }, "Paste a repository URL. An LLM analyzes its structure and writes a browsable wiki — cached locally in your browser."),
       form,
       errorBox,
@@ -64,7 +64,7 @@ function renderCachedCard(entry, root, { onGenerateRepo }) {
       el(
         "div",
         { class: "card-meta" },
-        `branch: ${entry.branch} · generated ${relativeTime(entry.generatedAt)}`
+        `${entry.host} · branch: ${entry.branch} · generated ${relativeTime(entry.generatedAt)}`
       ),
     ]),
     el("div", { class: "card-actions" }, [
@@ -74,7 +74,7 @@ function renderCachedCard(entry, root, { onGenerateRepo }) {
           class: "btn btn-ghost",
           type: "button",
           onClick: () => {
-            const wiki = getCachedWiki(entry.owner, entry.repo, entry.branch);
+            const wiki = getCachedWiki(entry.host, entry.owner, entry.repo, entry.branch);
             setState({ view: "wiki", wiki, wikiActivePageId: wiki.pages[0]?.id || null });
           },
         },
@@ -87,7 +87,7 @@ function renderCachedCard(entry, root, { onGenerateRepo }) {
           type: "button",
           onClick: () => {
             if (!confirm(`Delete cached wiki for ${entry.owner}/${entry.repo}?`)) return;
-            deleteCachedWiki(entry.owner, entry.repo, entry.branch);
+            deleteCachedWiki(entry.host, entry.owner, entry.repo, entry.branch);
             mountLandingView(root, { onGenerateRepo });
           },
         },
