@@ -1,0 +1,314 @@
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--fg);
+  font-weight: 500;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+.btn:hover {
+  border-color: var(--accent);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+}
+.btn-primary:hover {
+  filter: brightness(1.08);
+}
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+}
+.btn-ghost:hover {
+  background: var(--bg-elevated);
+  border-color: var(--border);
+}
+.btn-icon {
+  padding: 8px;
+  border-radius: 50%;
+  line-height: 1;
+}
+.btn-danger {
+  color: var(--danger);
+}
+
+/* Inputs */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+.field label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.field input,
+.field textarea {
+  padding: 9px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+}
+.field input:focus,
+.field textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.field-error {
+  color: var(--danger);
+  font-size: 12.5px;
+}
+.field-hint {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.input-with-toggle {
+  display: flex;
+  gap: 6px;
+}
+.input-with-toggle input {
+  flex: 1;
+}
+
+/* Modal (native <dialog>) */
+dialog {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  box-shadow: 0 10px 40px var(--shadow);
+  width: min(460px, 92vw);
+}
+dialog::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.modal-header h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.modal-body {
+  padding: 20px;
+}
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+}
+.modal-notice {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+
+/* Cards (cached repo list) */
+.card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  background: var(--bg-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.card-title {
+  font-weight: 600;
+}
+.card-meta {
+  font-size: 13px;
+  color: var(--muted);
+}
+.card-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* Badges */
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  background: var(--code-bg);
+  color: var(--muted);
+}
+
+/* Progress checklist */
+.progress-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.progress-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+.progress-item .status-icon {
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.progress-item.done { color: var(--muted); }
+.progress-item.active { background: var(--bg-elevated); font-weight: 600; }
+.progress-item.failed { color: var(--danger); }
+
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Error / empty states */
+.error-box {
+  border: 1px solid var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  color: var(--danger);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin: 16px 0;
+}
+.empty-state {
+  color: var(--muted);
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 16px;
+  box-shadow: 0 6px 20px var(--shadow);
+  font-size: 13.5px;
+  z-index: 1000;
+}
+
+/* Ask panel (wiki Q&A) */
+.wiki-content.qa-active {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.qa-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  max-width: 760px;
+  width: 100%;
+  margin: 0 auto;
+}
+.qa-messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: 16px;
+}
+.qa-message {
+  max-width: 85%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  line-height: 1.5;
+}
+.qa-message.user {
+  align-self: flex-end;
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+.qa-message.assistant {
+  align-self: flex-start;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+}
+.qa-message.assistant.pending {
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.qa-message.error {
+  align-self: flex-start;
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  max-width: 85%;
+}
+.qa-input-row {
+  display: flex;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.qa-input-row textarea {
+  flex: 1;
+  resize: none;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: inherit;
+  min-height: 42px;
+  max-height: 160px;
+}
+.qa-input-row textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.qa-empty-hint {
+  color: var(--muted);
+  text-align: center;
+  padding: 30px 10px;
+}
