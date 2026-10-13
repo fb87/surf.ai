@@ -28,6 +28,12 @@ const PREDEFINED_MODELS = [
   "llama-3.3-70b-versatile",
 ];
 
+const KNOWN_BASE_URL_HOSTNAMES = new Set(PREDEFINED_BASE_URLS.map((p) => new URL(p.value).hostname));
+
+function isLocalHostname(hostname) {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname.endsWith(".local");
+}
+
 function render(notice) {
   clear(dialog);
   const settings = getSettings() || {};
@@ -93,6 +99,25 @@ function render(notice) {
   );
 
   const errorBox = el("div", { class: "field-error hidden" });
+
+  const baseUrlWarning = el("div", { class: "field-error hidden" });
+  function updateBaseUrlWarning() {
+    const value = baseUrlInput.value.trim();
+    let hostname;
+    try {
+      hostname = new URL(value).hostname;
+    } catch {
+      baseUrlWarning.classList.add("hidden");
+      return;
+    }
+    if (KNOWN_BASE_URL_HOSTNAMES.has(hostname) || isLocalHostname(hostname)) {
+      baseUrlWarning.classList.add("hidden");
+    } else {
+      baseUrlWarning.textContent = `⚠ "${hostname}" isn't one of the recognized providers above — make sure you trust this endpoint before your API key is sent to it.`;
+      baseUrlWarning.classList.remove("hidden");
+    }
+  }
+  baseUrlInput.addEventListener("input", updateBaseUrlWarning);
 
   const toggleKeyBtn = el(
     "button",
@@ -169,8 +194,10 @@ function render(notice) {
       baseUrlInput,
       baseUrlDatalist,
       el("div", { class: "field-hint" }, "Pick a predefined provider or type your own, e.g. a GitHub Enterprise-style custom endpoint."),
+      baseUrlWarning,
     ])
   );
+  updateBaseUrlWarning();
   body.appendChild(
     el("div", { class: "field" }, [
       el("label", { for: "settings-api-key" }, "API Key (optional)"),
@@ -258,23 +285,29 @@ function renderBackupSection(notice) {
     onChange: (e) => handleImportFile(e.target.files[0], notice),
   });
 
+  const includeKeysCheckbox = el("input", { type: "checkbox", id: "backup-include-keys", checked: "checked" });
+
   return el("div", { class: "field" }, [
     el("label", {}, "Backup & Restore"),
     el(
       "div",
       { class: "field-hint" },
-      "Exports or restores everything this app stores locally — settings, connection history, and cached wikis — as a JSON file. It contains your API key(s) in plain text, so store it somewhere safe."
+      "Exports or restores everything this app stores locally — settings, connection history, and cached wikis — as a JSON file."
     ),
+    el("label", { for: "backup-include-keys", style: "display:flex;align-items:center;gap:6px;font-weight:400;margin-top:4px;" }, [
+      includeKeysCheckbox,
+      "Include API keys in export (leave checked for a full restore; uncheck to share/store the file somewhere less trusted)",
+    ]),
     el("div", { style: "display:flex;gap:8px;margin-top:6px;" }, [
-      el("button", { class: "btn btn-ghost", type: "button", onClick: handleExport }, "⬇ Export Backup"),
+      el("button", { class: "btn btn-ghost", type: "button", onClick: () => handleExport(includeKeysCheckbox.checked) }, "⬇ Export Backup"),
       el("button", { class: "btn btn-ghost", type: "button", onClick: () => fileInput.click() }, "⬆ Import Backup"),
       fileInput,
     ]),
   ]);
 }
 
-function handleExport() {
-  const payload = exportAllData();
+function handleExport(includeApiKeys) {
+  const payload = exportAllData({ includeApiKeys });
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = el("a", { href: url, download: `surfai-backup-${new Date().toISOString().slice(0, 10)}.json` });

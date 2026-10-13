@@ -242,10 +242,39 @@ function allAppKeys() {
   return keys;
 }
 
-export function exportAllData() {
+function redactApiKey(jsonString) {
+  try {
+    const obj = JSON.parse(jsonString);
+    if (obj && typeof obj === "object" && "apiKey" in obj) obj.apiKey = "";
+    return JSON.stringify(obj);
+  } catch {
+    return jsonString;
+  }
+}
+
+function redactConnectionKeys(jsonString) {
+  try {
+    const list = JSON.parse(jsonString);
+    if (Array.isArray(list)) {
+      for (const c of list) {
+        if (c && typeof c === "object") c.apiKey = "";
+      }
+    }
+    return JSON.stringify(list);
+  } catch {
+    return jsonString;
+  }
+}
+
+export function exportAllData({ includeApiKeys = true } = {}) {
   const data = {};
   for (const key of allAppKeys()) {
-    data[key] = localStorage.getItem(key);
+    let value = localStorage.getItem(key);
+    if (!includeApiKeys) {
+      if (key === SETTINGS_KEY) value = redactApiKey(value);
+      else if (key === CONNECTIONS_KEY) value = redactConnectionKeys(value);
+    }
+    data[key] = value;
   }
   return { version: 1, exportedAt: new Date().toISOString(), data };
 }
