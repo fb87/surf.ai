@@ -1,5 +1,5 @@
-import { el, clear } from "../utils/dom.js";
-import { getSettings, saveSettings, isSettingsValid, listConnections, deleteConnection, exportAllData, importAllData } from "../storage/cache.js";
+import { el, clear, formatBytes } from "../utils/dom.js";
+import { getSettings, saveSettings, isSettingsValid, listConnections, deleteConnection, exportAllData, importAllData, getStorageUsage, clearAllCachedWikis } from "../storage/cache.js";
 
 const dialog = document.getElementById("settings-modal");
 let onSavedCallback = null;
@@ -120,6 +120,7 @@ function render(notice) {
     ])
   );
   body.appendChild(errorBox);
+  body.appendChild(renderStorageSection(notice));
   body.appendChild(renderBackupSection(notice));
   dialog.appendChild(body);
 
@@ -151,6 +152,35 @@ function render(notice) {
       ),
     ])
   );
+}
+
+function renderStorageSection(notice) {
+  const usage = getStorageUsage();
+
+  return el("div", { class: "field" }, [
+    el("label", {}, "Storage"),
+    el(
+      "div",
+      { class: "field-hint" },
+      `${formatBytes(usage.totalBytes)} used in this browser — ${usage.wikiCount} cached ${usage.wikiCount === 1 ? "wiki" : "wikis"} (${formatBytes(usage.wikiBytes)}). Browsers typically cap localStorage around 5–10 MB per site; oldest cached wikis are evicted automatically if that's hit.`
+    ),
+    usage.wikiCount > 0
+      ? el(
+          "button",
+          {
+            class: "btn btn-ghost btn-danger",
+            type: "button",
+            style: "margin-top:6px;",
+            onClick: () => {
+              if (!confirm(`Delete all ${usage.wikiCount} cached wikis? Settings and connection history are kept. This can't be undone.`)) return;
+              clearAllCachedWikis();
+              render(notice);
+            },
+          },
+          "Clear All Cached Wikis"
+        )
+      : null,
+  ]);
 }
 
 function renderBackupSection(notice) {

@@ -68,6 +68,25 @@
   letter-spacing: 0.04em;
   margin-bottom: 10px;
 }
+.cached-filter-input {
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--fg);
+  margin-bottom: 2px;
+}
+.cached-filter-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding-top: 4px;
+}
 
 /* Progress view */
 .progress-view {

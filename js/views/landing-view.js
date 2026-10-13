@@ -1,4 +1,4 @@
-import { el, clear, relativeTime } from "../utils/dom.js";
+import { el, clear, relativeTime, formatBytes } from "../utils/dom.js";
 import { listCachedRepos, deleteCachedWiki, getCachedWiki } from "../storage/cache.js";
 import { setState } from "../state.js";
 
@@ -36,15 +36,92 @@ export function mountLandingView(root, { onGenerateRepo }) {
     el("button", { class: "btn btn-primary", type: "button", onClick: submit }, "Generate Wiki"),
   ]);
 
+  const PAGE_SIZE = 10;
   const cached = listCachedRepos();
   const list = el("div", { class: "cached-list" });
+
   if (cached.length === 0) {
     list.appendChild(el("div", { class: "empty-state" }, "No repositories generated yet. Paste a URL above to get started."));
   } else {
     list.appendChild(el("h2", {}, "Previously Generated"));
-    for (const entry of cached) {
-      list.appendChild(renderCachedCard(entry, root, { onGenerateRepo }));
+
+    let filterText = "";
+    let currentPage = 1;
+    const cardsContainer = el("div", {});
+
+    function renderCards() {
+      clear(cardsContainer);
+      const needle = filterText.trim().toLowerCase();
+      const filtered = needle
+        ? cached.filter((e) => `${e.owner}/${e.repo}`.toLowerCase().includes(needle) || e.host.toLowerCase().includes(needle))
+        : cached;
+
+      if (filtered.length === 0) {
+        cardsContainer.appendChild(el("div", { class: "empty-state" }, `No cached repos match "${filterText.trim()}".`));
+        return;
+      }
+
+      const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+      if (currentPage > totalPages) currentPage = totalPages;
+      const pageItems = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+      for (const entry of pageItems) {
+        cardsContainer.appendChild(renderCachedCard(entry, root, { onGenerateRepo }));
+      }
+
+      if (totalPages > 1) {
+        cardsContainer.appendChild(
+          el("div", { class: "pager" }, [
+            el(
+              "button",
+              {
+                class: "btn btn-ghost",
+                type: "button",
+                disabled: currentPage === 1 ? "disabled" : undefined,
+                onClick: () => {
+                  if (currentPage > 1) {
+                    currentPage--;
+                    renderCards();
+                  }
+                },
+              },
+              "← Prev"
+            ),
+            el("span", { class: "card-meta" }, `Page ${currentPage} of ${totalPages} (${filtered.length} repos)`),
+            el(
+              "button",
+              {
+                class: "btn btn-ghost",
+                type: "button",
+                disabled: currentPage === totalPages ? "disabled" : undefined,
+                onClick: () => {
+                  if (currentPage < totalPages) {
+                    currentPage++;
+                    renderCards();
+                  }
+                },
+              },
+              "Next →"
+            ),
+          ])
+        );
+      }
     }
+
+    const filterInput = el("input", {
+      type: "text",
+      class: "cached-filter-input",
+      placeholder: "Filter by owner/repo or host…",
+      "aria-label": "Filter cached repositories",
+    });
+    filterInput.addEventListener("input", () => {
+      filterText = filterInput.value;
+      currentPage = 1;
+      renderCards();
+    });
+    list.appendChild(filterInput);
+    list.appendChild(cardsContainer);
+    renderCards();
   }
 
   root.appendChild(
@@ -65,7 +142,7 @@ function renderCachedCard(entry, root, { onGenerateRepo }) {
       el(
         "div",
         { class: "card-meta" },
-        `${entry.host} · branch: ${entry.branch} · generated ${relativeTime(entry.generatedAt)}`
+        `${entry.host} · branch: ${entry.branch} · ${formatBytes(entry.sizeBytes || 0)} · generated ${relativeTime(entry.generatedAt)}`
       ),
     ]),
     el("div", { class: "card-actions" }, [

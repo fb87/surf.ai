@@ -179,6 +179,34 @@ export function deleteCachedWiki(host, owner, repo, branch) {
   writeIndex(index);
 }
 
+export function clearAllCachedWikis() {
+  for (const entry of readIndex()) {
+    localStorage.removeItem(entry.key);
+  }
+  writeIndex([]);
+}
+
+// Approximate bytes used, counted the way browsers typically do for
+// localStorage quota purposes (UTF-16 code units, 2 bytes each) — there's no
+// reliable cross-browser API to query the actual localStorage quota itself
+// (it's commonly 5-10MB per origin, but varies), so this reports usage
+// without claiming to know the exact ceiling.
+export function getStorageUsage() {
+  let wikiBytes = 0;
+  const wikiIndex = readIndex();
+  for (const entry of wikiIndex) {
+    wikiBytes += entry.sizeBytes || 0;
+  }
+
+  let totalBytes = 0;
+  for (const key of allAppKeys()) {
+    const value = localStorage.getItem(key) || "";
+    totalBytes += (key.length + value.length) * 2;
+  }
+
+  return { totalBytes, wikiBytes, wikiCount: wikiIndex.length };
+}
+
 // ---- Theme preference ----
 
 export function getTheme() {
