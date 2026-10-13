@@ -17,7 +17,7 @@ function render(notice) {
   const apiKeyInput = el("input", {
     type: "password",
     id: "settings-api-key",
-    placeholder: "sk-...",
+    placeholder: "sk-... (leave blank if not required)",
     value: settings.apiKey || "",
   });
   const modelInput = el("input", {
@@ -61,8 +61,9 @@ function render(notice) {
   );
   body.appendChild(
     el("div", { class: "field" }, [
-      el("label", { for: "settings-api-key" }, "API Key"),
+      el("label", { for: "settings-api-key" }, "API Key (optional)"),
       el("div", { class: "input-with-toggle" }, [apiKeyInput, toggleKeyBtn]),
+      el("div", { class: "field-hint" }, "Leave blank for local servers that don't require auth (e.g. Ollama, LM Studio)."),
     ])
   );
   body.appendChild(
