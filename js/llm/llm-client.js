@@ -168,3 +168,39 @@ async function callAnthropicMessages({ baseUrl, apiKey, model, messages, tempera
   }
   return { content, raw: json };
 }
+
+// Lists available models from a provider's /models endpoint, for populating
+// the Model field's suggestions. Returns an array of model id strings.
+export async function listModels({ baseUrl, apiKey }) {
+  const isAnthropic = isAnthropicBaseUrl(baseUrl);
+  const url = isAnthropic ? `${new URL(baseUrl).origin}/v1/models` : `${baseUrl.replace(/\/+$/, "")}/models`;
+  const headers = isAnthropic
+    ? { "x-api-key": apiKey, "anthropic-version": ANTHROPIC_VERSION, "anthropic-dangerous-direct-browser-access": "true" }
+    : { ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}) };
+
+  let res;
+  try {
+    res = await fetch(url, { headers });
+  } catch (err) {
+    throw new LlmApiError(`Network error listing models: ${err.message}`, "network");
+  }
+
+  if (res.status === 401 || res.status === 403) {
+    throw new LlmApiError("Authentication failed — check your API key.", "auth", res.status);
+  }
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    const detail = extractErrorDetail(text);
+    throw new LlmApiError(`Listing models returned status ${res.status}${detail ? `: ${detail}` : ""}.`, "unknown", res.status, detail);
+  }
+
+  let json;
+  try {
+    json = await res.json();
+  } catch {
+    throw new LlmApiError("Model list response wasn't valid JSON.", "bad_response");
+  }
+
+  const list = Array.isArray(json?.data) ? json.data : Array.isArray(json?.models) ? json.models : [];
+  return list.map((m) => m.id || m.name).filter((id) => typeof id === "string").sort();
+}

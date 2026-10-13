@@ -40,6 +40,8 @@ Confirmed-working settings (verified end-to-end as of October 2026):
 | **Groq** | `https://api.groq.com/openai/v1` | `llama-3.1-8b-instant` | Free developer tier, CORS allowed. Untested end-to-end in this app but confirmed CORS-compatible. |
 | Local (Ollama, LM Studio, vLLM, etc.) | e.g. `http://localhost:11434/v1` | whatever's loaded | Free, no CORS issues if the server allows it (Ollama needs `OLLAMA_ORIGINS` set). |
 
+Settings' Base URL and Model fields are editable dropdowns (type your own, or pick a suggestion) — Base URL is pre-populated with the providers above, and Model has a static list of common model names plus a **🔄 Fetch Models** button that queries the endpoint's `/models` (or Anthropic's native `/v1/models`) using the current Base URL + API key and replaces the suggestions with whatever the provider actually has available.
+
 ## Running locally
 
 No install needed. Serve the directory with any static file server and open it — ES modules require `http://`, not `file://`:

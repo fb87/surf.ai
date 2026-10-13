@@ -1,8 +1,32 @@
 import { el, clear, formatBytes } from "../utils/dom.js";
 import { getSettings, saveSettings, isSettingsValid, listConnections, deleteConnection, exportAllData, importAllData, getStorageUsage, clearAllCachedWikis } from "../storage/cache.js";
+import { listModels } from "../llm/llm-client.js";
+import { mapErrorToMessage } from "../utils/errors.js";
 
 const dialog = document.getElementById("settings-modal");
 let onSavedCallback = null;
+
+const PREDEFINED_BASE_URLS = [
+  { label: "OpenAI", value: "https://api.openai.com/v1" },
+  { label: "Google Gemini", value: "https://generativelanguage.googleapis.com/v1beta/openai" },
+  { label: "Anthropic", value: "https://api.anthropic.com/v1" },
+  { label: "Groq", value: "https://api.groq.com/openai/v1" },
+  { label: "OpenRouter", value: "https://openrouter.ai/api/v1" },
+  { label: "Local Ollama", value: "http://localhost:11434/v1" },
+  { label: "Local LM Studio", value: "http://localhost:1234/v1" },
+];
+
+const PREDEFINED_MODELS = [
+  "gpt-4o-mini",
+  "gpt-4o",
+  "gemini-2.5-flash",
+  "gemini-2.5-pro",
+  "claude-sonnet-5",
+  "claude-haiku-4-5-20251001",
+  "claude-opus-5",
+  "llama-3.1-8b-instant",
+  "llama-3.3-70b-versatile",
+];
 
 function render(notice) {
   clear(dialog);
@@ -11,9 +35,15 @@ function render(notice) {
   const baseUrlInput = el("input", {
     type: "text",
     id: "settings-base-url",
+    list: "settings-base-url-options",
     placeholder: "https://api.openai.com/v1",
     value: settings.baseUrl || "",
   });
+  const baseUrlDatalist = el(
+    "datalist",
+    { id: "settings-base-url-options" },
+    PREDEFINED_BASE_URLS.map((p) => el("option", { value: p.value, label: p.label }))
+  );
   const apiKeyInput = el("input", {
     type: "password",
     id: "settings-api-key",
@@ -23,9 +53,44 @@ function render(notice) {
   const modelInput = el("input", {
     type: "text",
     id: "settings-model",
+    list: "settings-model-options",
     placeholder: "gpt-4o-mini",
     value: settings.model || "",
   });
+  const modelDatalist = el("datalist", { id: "settings-model-options" }, PREDEFINED_MODELS.map((m) => el("option", { value: m })));
+  const modelStatus = el("div", { class: "field-hint" }, "e.g. gpt-4o-mini, llama3.1, claude-sonnet-5");
+
+  const fetchModelsBtn = el(
+    "button",
+    {
+      type: "button",
+      class: "btn btn-ghost",
+      onClick: async () => {
+        const baseUrl = baseUrlInput.value.trim();
+        const apiKey = apiKeyInput.value.trim();
+        if (!baseUrl) {
+          modelStatus.textContent = "Enter a Base URL first.";
+          return;
+        }
+        fetchModelsBtn.disabled = true;
+        fetchModelsBtn.textContent = "Fetching…";
+        modelStatus.textContent = "Fetching available models…";
+        try {
+          const models = await listModels({ baseUrl, apiKey });
+          clear(modelDatalist);
+          for (const m of models) modelDatalist.appendChild(el("option", { value: m }));
+          modelStatus.textContent = models.length
+            ? `Loaded ${models.length} model${models.length === 1 ? "" : "s"} from the endpoint — pick one from the dropdown.`
+            : "The endpoint returned no models.";
+        } catch (err) {
+          modelStatus.textContent = mapErrorToMessage(err);
+        }
+        fetchModelsBtn.disabled = false;
+        fetchModelsBtn.textContent = "🔄 Fetch Models";
+      },
+    },
+    "🔄 Fetch Models"
+  );
 
   const errorBox = el("div", { class: "field-error hidden" });
 
@@ -102,7 +167,8 @@ function render(notice) {
     el("div", { class: "field" }, [
       el("label", { for: "settings-base-url" }, "Base URL"),
       baseUrlInput,
-      el("div", { class: "field-hint" }, "OpenAI-compatible endpoint, e.g. https://api.openai.com/v1 or http://localhost:11434/v1"),
+      baseUrlDatalist,
+      el("div", { class: "field-hint" }, "Pick a predefined provider or type your own, e.g. a GitHub Enterprise-style custom endpoint."),
     ])
   );
   body.appendChild(
@@ -115,8 +181,9 @@ function render(notice) {
   body.appendChild(
     el("div", { class: "field" }, [
       el("label", { for: "settings-model" }, "Model"),
-      modelInput,
-      el("div", { class: "field-hint" }, "e.g. gpt-4o-mini, llama3.1, claude-sonnet-5"),
+      el("div", { style: "display:flex;gap:8px;" }, [modelInput, fetchModelsBtn]),
+      modelDatalist,
+      modelStatus,
     ])
   );
   body.appendChild(errorBox);
