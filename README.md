@@ -35,6 +35,17 @@ python3 -m http.server 8000
 # then open http://localhost:8000/
 ```
 
+## Building a single-file distributable
+
+`shell.nix` + `build.js` bundle the whole app — JS, CSS, vendored libraries, and the Alegreya font — into one minified, self-contained `dist/surf.ai.html` with zero external dependencies. It works straight off disk via `file://`, since unlike the dev version it isn't ES modules.
+
+```sh
+nix-shell --run 'node build.js'
+# output: dist/surf.ai.html
+```
+
+This is dev tooling only — the app's actual source stays plain, buildless ES modules/CSS; nothing about running or deploying the normal way requires Nix or a build step.
+
 ## Project layout
 
 - `js/github/` — GitHub API client + file/module filtering
