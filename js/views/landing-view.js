@@ -75,6 +75,12 @@ function renderCachedCard(entry, root, { onGenerateRepo }) {
           type: "button",
           onClick: () => {
             const wiki = getCachedWiki(entry.host, entry.owner, entry.repo, entry.branch);
+            if (!wiki) {
+              alert("This cached wiki could no longer be loaded (it may be from an older version of the app) and has been removed. Try generating it again.");
+              deleteCachedWiki(entry.host, entry.owner, entry.repo, entry.branch);
+              mountLandingView(root, { onGenerateRepo });
+              return;
+            }
             setState({ view: "wiki", wiki, wikiActivePageId: wiki.pages[0]?.id || null });
           },
         },

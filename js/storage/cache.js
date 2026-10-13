@@ -62,7 +62,13 @@ function writeIndex(index) {
 }
 
 export function listCachedRepos() {
-  return readIndex().sort((a, b) => new Date(b.lastAccessed) - new Date(a.lastAccessed));
+  const index = readIndex();
+  // Self-heal: entries from before host/providerId were added to the cache
+  // schema can never resolve under the current key format (which includes
+  // host) — drop them from the index rather than surfacing a broken "Open".
+  const valid = index.filter((e) => typeof e.host === "string" && e.host);
+  if (valid.length !== index.length) writeIndex(valid);
+  return valid.sort((a, b) => new Date(b.lastAccessed) - new Date(a.lastAccessed));
 }
 
 export function getCachedWiki(host, owner, repo, branch) {
