@@ -12,6 +12,7 @@ export function mountLandingView(root, { onGenerateRepo }) {
     type: "text",
     placeholder: "github.com/owner/repo, gitlab.com/owner/repo, bitbucket.org/owner/repo…",
     "aria-label": "Git repository URL",
+    value: "github.com/fb87/surf.ai",
   });
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") submit();
