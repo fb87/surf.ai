@@ -8,9 +8,9 @@ export function mapErrorToMessage(err) {
       case "not_found":
         return "We couldn't find that repository (or branch). Check the URL and try again.";
       case "rate_limited":
-        return "The repository host's API rate limit was hit (unauthenticated access is rate-limited). Wait a bit and retry.";
+        return err.message || "The repository host's API rate limit was hit (unauthenticated access is rate-limited). Wait a bit and retry.";
       case "unauthorized":
-        return "That host rejected the request (401/403) — it likely requires authentication, which isn't supported for repository hosts, only public/anonymous access.";
+        return err.message || "That host rejected the request (401/403) — it likely requires authentication, which isn't supported for repository hosts, only public/anonymous access.";
       case "network":
         return "Network error reaching the repository host. Check your connection and try again.";
       default:

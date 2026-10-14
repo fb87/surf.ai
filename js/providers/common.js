@@ -16,6 +16,17 @@ export async function probeReadme(fetchRawFileFn, ref) {
   return null;
 }
 
+function rateLimitMessage(res) {
+  const resetHeader = res.headers.get("x-ratelimit-reset");
+  if (resetHeader) {
+    const resetDate = new Date(Number(resetHeader) * 1000);
+    if (!Number.isNaN(resetDate.getTime())) {
+      return `API rate limit exceeded for unauthenticated access. Resets at ${resetDate.toLocaleTimeString()}.`;
+    }
+  }
+  return "API rate limit exceeded for unauthenticated access. Wait a bit and try again.";
+}
+
 export async function providerFetch(url, { headers = {}, accept404 = false } = {}) {
   let res;
   try {
@@ -29,9 +40,24 @@ export async function providerFetch(url, { headers = {}, accept404 = false } = {
     throw new ProviderApiError("Repository, branch, or file not found.", "not_found", 404);
   }
   if (res.status === 401 || res.status === 403) {
+    const limit = res.headers.get("x-ratelimit-limit");
     const remaining = res.headers.get("x-ratelimit-remaining");
-    if (remaining === "0") {
-      throw new ProviderApiError("API rate limit exceeded for unauthenticated access. Wait a bit and try again.", "rate_limited", res.status);
+    if (remaining === "0" && limit !== "0") {
+      // A genuine rate limit: anonymous access is allowed and has a real
+      // quota (limit > 0), it's just been used up for this window.
+      throw new ProviderApiError(rateLimitMessage(res), "rate_limited", res.status);
+    }
+    if (limit === "0") {
+      // The host reports zero quota for anonymous access at all — this isn't
+      // "you used it up," it's "this isn't allowed here," most commonly a
+      // GitHub Enterprise Server instance with anonymous access disabled.
+      // Waiting out a "rate limit" would never fix this, so it's reported as
+      // an auth problem instead.
+      throw new ProviderApiError(
+        "This host isn't granting any API quota for unauthenticated access (likely anonymous access is disabled on this instance) — authentication would be required, which isn't supported here.",
+        "unauthorized",
+        res.status
+      );
     }
     throw new ProviderApiError(
       "Access denied (401/403). This host may require authentication for API access, which isn't supported — only unauthenticated/public access is.",
@@ -40,7 +66,7 @@ export async function providerFetch(url, { headers = {}, accept404 = false } = {
     );
   }
   if (res.status === 429) {
-    throw new ProviderApiError("API rate limit exceeded. Wait a bit and try again.", "rate_limited", 429);
+    throw new ProviderApiError(rateLimitMessage(res), "rate_limited", 429);
   }
   if (!res.ok) {
     throw new ProviderApiError(`Repository host returned unexpected status ${res.status}.`, "unknown", res.status);
