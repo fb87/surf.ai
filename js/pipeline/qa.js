@@ -4,7 +4,7 @@ import { getGitToken } from "../storage/cache.js";
 
 const CONTEXT_BUDGET_CHARS = 40_000;
 const MAX_HISTORY_TURNS = 6;
-const MAX_TOOL_ITERATIONS = 5;
+const MAX_TOOL_ITERATIONS = 8;
 const MAX_SEARCH_RESULTS = 30;
 const MAX_FILE_FETCH_CHARS = 20_000;
 
@@ -124,5 +124,14 @@ export async function askQuestion({ wikiData, question, history, settings }) {
     }
   }
 
-  throw new Error("Reached the maximum number of tool lookups without a final answer. Try rephrasing your question.");
+  // Didn't converge within the tool-call budget — rather than dead-ending,
+  // force a final answer from whatever's been gathered so far: one more call
+  // with tools omitted entirely, so the model can't ask for another lookup
+  // and must respond with text.
+  messages.push({
+    role: "user",
+    content: "You've used up the available tool lookups for this question. Please give your best answer now based on everything gathered so far, noting any uncertainty.",
+  });
+  const { content } = await chatCompletion({ ...settings, messages, temperature: 0.3 });
+  return content || "Couldn't reach a final answer within the available tool lookups — try rephrasing your question or asking something more specific.";
 }
