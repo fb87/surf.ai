@@ -32,14 +32,20 @@ function decodeBase64Utf8(b64) {
   return new TextDecoder("utf-8").decode(bytes);
 }
 
+function authHeaders(ref) {
+  return ref.token ? { Authorization: `token ${ref.token}` } : {};
+}
+
 export async function fetchDefaultBranch(ref) {
-  const res = await providerFetch(`${apiBase()}/repos/${ref.owner}/${ref.repo}`);
+  const res = await providerFetch(`${apiBase()}/repos/${ref.owner}/${ref.repo}`, { headers: authHeaders(ref) });
   const json = await res.json();
   return json.default_branch;
 }
 
 export async function fetchTree(ref) {
-  const res = await providerFetch(`${apiBase()}/repos/${ref.owner}/${ref.repo}/git/trees/${encodeURIComponent(ref.branch)}?recursive=1`);
+  const res = await providerFetch(`${apiBase()}/repos/${ref.owner}/${ref.repo}/git/trees/${encodeURIComponent(ref.branch)}?recursive=1`, {
+    headers: authHeaders(ref),
+  });
   const json = await res.json();
   const entries = (json.tree || []).map((e) => ({ path: e.path, type: e.type, size: e.size, sha: e.sha }));
   return { entries, truncated: Boolean(json.truncated) };
@@ -51,7 +57,9 @@ export async function fetchReadme(ref) {
 
 export async function fetchRawFile(ref, path, maxChars = 50_000) {
   const encodedPath = path.split("/").map(encodeURIComponent).join("/");
-  const res = await providerFetch(`${apiBase()}/repos/${ref.owner}/${ref.repo}/contents/${encodedPath}?ref=${encodeURIComponent(ref.branch)}`);
+  const res = await providerFetch(`${apiBase()}/repos/${ref.owner}/${ref.repo}/contents/${encodedPath}?ref=${encodeURIComponent(ref.branch)}`, {
+    headers: authHeaders(ref),
+  });
   const json = await res.json();
   if (typeof json.content !== "string") throw new Error(`Unexpected response fetching ${path} from Gitee.`);
   return truncateText(decodeBase64Utf8(json.content), maxChars);

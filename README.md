@@ -16,7 +16,7 @@ You need your own LLM API endpoint — configure it via the ⚙️ settings icon
 
 ## Supported Git hosts
 
-All unauthenticated/public-repo access only — no token support. A pasted URL's host is auto-detected for the four public clouds; anything else (a custom domain) prompts you to pick which of the three "custom domain" providers it is.
+Works unauthenticated for public repos, with an optional personal access token per host (Settings → Git Host Access Tokens) to raise the rate limit and enable private/enterprise access. A pasted URL's host is auto-detected for the four public clouds; anything else (a custom domain) prompts you to pick which of the three "custom domain" providers it is.
 
 | Provider | Host(s) | API | Notes |
 |---|---|---|---|
@@ -24,8 +24,12 @@ All unauthenticated/public-repo access only — no token support. A pasted URL's
 | **GitHub Enterprise** | any custom domain (picked explicitly) | same API under `/api/v3` | Same adapter as github.com, just a different base URL. No separate raw CDN, so file content goes through the Contents API with a raw Accept header instead. |
 | **GitLab** | `gitlab.com`, or any custom domain (self-hosted) | REST API v4 | Paginated tree fetch (GitLab doesn't offer a single-call recursive tree like GitHub). Only top-level `owner/repo` projects are supported — nested subgroups (`group/subgroup/project`) aren't handled. |
 | **Bitbucket Cloud** | `bitbucket.org` | REST API 2.0 | No single-call recursive tree — walks directories one API call at a time, capped at 60 calls. More rate-limit-prone than the others as a result. |
-| **Bitbucket Server / Data Center** | any custom domain (picked explicitly) | REST API 1.0 | Structurally unrelated to Bitbucket Cloud's API. **Untested against a real instance** (none available) — implemented per Atlassian's published docs. Most self-hosted instances require auth even for nominally public repos, which isn't supported here, and CORS is admin/version-dependent, so this may simply not work on a given deployment — errors surface clearly rather than hanging. |
+| **Bitbucket Server / Data Center** | any custom domain (picked explicitly) | REST API 1.0 | Structurally unrelated to Bitbucket Cloud's API. **Untested against a real instance** (none available) — implemented per Atlassian's published docs. Most self-hosted instances require auth even for nominally public repos — a token (below) covers this. CORS is still admin/version-dependent regardless, so this may simply not work on a given deployment — errors surface clearly rather than hanging. |
 | **Gitee** | `gitee.com` | REST API v5 | Modeled closely on GitHub's API. File content comes back base64-encoded via the contents endpoint. |
+
+### Git host access tokens
+
+Settings → **Git Host Access Tokens** lets you add an optional personal access token per host (just needs repo read scope). This isn't required for public repos, but raises the otherwise-low unauthenticated rate limits substantially (GitHub: 60/hour → 5000/hour) and is required for GitHub Enterprise / self-hosted GitLab / Bitbucket Server instances that don't allow anonymous API access, which is most of them. Sent as `Authorization: Bearer` (GitHub, Bitbucket Cloud/Server), `PRIVATE-TOKEN` (GitLab), or `Authorization: token` (Gitee). Tokens are looked up fresh by host at request time and never stored inside a cached wiki.
 
 ## Connecting a provider
 

@@ -3,6 +3,7 @@ const CONNECTIONS_KEY = "wikigen.connections.v1";
 const MAX_CONNECTION_HISTORY = 20;
 const INDEX_KEY = "wikigen.cache.v1.index";
 const REPO_KEY_PREFIX = "wikigen.cache.v1.repo:";
+const GIT_TOKENS_KEY = "wikigen.gittokens.v1";
 
 function repoKey(host, owner, repo, branch) {
   return `${REPO_KEY_PREFIX}${host.toLowerCase()}/${owner.toLowerCase()}/${repo.toLowerCase()}/${branch}`;
@@ -72,6 +73,41 @@ export function isSettingsValid(settings) {
     return false;
   }
   return true;
+}
+
+// ---- Git host access tokens ----
+// Keyed by host (e.g. "github.com", "ghe.mycompany.com"), not by repo —
+// unauthenticated access is rate-limited quite low (e.g. GitHub: 60/hr); an
+// optional personal access token raises that substantially (GitHub: 5000/hr)
+// and allows private repos where the host supports it. Never stored inside a
+// cached WikiData — looked up fresh by host at request time.
+
+export function getGitTokens() {
+  try {
+    const raw = localStorage.getItem(GIT_TOKENS_KEY);
+    const obj = raw ? JSON.parse(raw) : {};
+    return obj && typeof obj === "object" ? obj : {};
+  } catch {
+    return {};
+  }
+}
+
+export function getGitToken(host) {
+  if (!host) return undefined;
+  return getGitTokens()[host.toLowerCase()];
+}
+
+export function saveGitToken(host, token) {
+  const tokens = getGitTokens();
+  if (token) tokens[host.toLowerCase()] = token;
+  else delete tokens[host.toLowerCase()];
+  localStorage.setItem(GIT_TOKENS_KEY, JSON.stringify(tokens));
+}
+
+export function deleteGitToken(host) {
+  const tokens = getGitTokens();
+  delete tokens[host.toLowerCase()];
+  localStorage.setItem(GIT_TOKENS_KEY, JSON.stringify(tokens));
 }
 
 // ---- Wiki cache ----
@@ -266,6 +302,18 @@ function redactConnectionKeys(jsonString) {
   }
 }
 
+function redactGitTokens(jsonString) {
+  try {
+    const tokens = JSON.parse(jsonString);
+    if (tokens && typeof tokens === "object") {
+      for (const host of Object.keys(tokens)) tokens[host] = "";
+    }
+    return JSON.stringify(tokens);
+  } catch {
+    return jsonString;
+  }
+}
+
 export function exportAllData({ includeApiKeys = true } = {}) {
   const data = {};
   for (const key of allAppKeys()) {
@@ -273,6 +321,7 @@ export function exportAllData({ includeApiKeys = true } = {}) {
     if (!includeApiKeys) {
       if (key === SETTINGS_KEY) value = redactApiKey(value);
       else if (key === CONNECTIONS_KEY) value = redactConnectionKeys(value);
+      else if (key === GIT_TOKENS_KEY) value = redactGitTokens(value);
     }
     data[key] = value;
   }

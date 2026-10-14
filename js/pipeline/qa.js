@@ -1,5 +1,6 @@
 import { chatCompletion } from "../llm/llm-client.js";
 import { getAdapterById } from "../providers/detect.js";
+import { getGitToken } from "../storage/cache.js";
 
 const CONTEXT_BUDGET_CHARS = 40_000;
 const MAX_HISTORY_TURNS = 6;
@@ -95,6 +96,7 @@ export function buildWikiContext(wikiData) {
 
 export async function askQuestion({ wikiData, question, history, settings }) {
   const adapter = getAdapterById(wikiData.providerId);
+  const ref = { ...wikiData, token: getGitToken(wikiData.host) };
   const context = buildWikiContext(wikiData);
   const systemPrompt =
     `You are answering developer questions about the repository ${wikiData.owner}/${wikiData.repo} ` +
@@ -116,7 +118,7 @@ export async function askQuestion({ wikiData, question, history, settings }) {
 
     for (const tc of toolCalls) {
       const result = adapter
-        ? await executeTool(tc.name, tc.arguments, adapter, wikiData)
+        ? await executeTool(tc.name, tc.arguments, adapter, ref)
         : `Error: this wiki's repository host (${wikiData.providerId}) doesn't support live file lookups.`;
       messages.push({ role: "tool", tool_call_id: tc.id, content: result });
     }

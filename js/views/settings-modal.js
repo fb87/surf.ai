@@ -1,5 +1,18 @@
 import { el, clear, formatBytes } from "../utils/dom.js";
-import { getSettings, saveSettings, isSettingsValid, listConnections, deleteConnection, exportAllData, importAllData, getStorageUsage, clearAllCachedWikis } from "../storage/cache.js";
+import {
+  getSettings,
+  saveSettings,
+  isSettingsValid,
+  listConnections,
+  deleteConnection,
+  exportAllData,
+  importAllData,
+  getStorageUsage,
+  clearAllCachedWikis,
+  getGitTokens,
+  saveGitToken,
+  deleteGitToken,
+} from "../storage/cache.js";
 import { listModels } from "../llm/llm-client.js";
 import { mapErrorToMessage } from "../utils/errors.js";
 
@@ -27,6 +40,8 @@ const PREDEFINED_MODELS = [
   "llama-3.1-8b-instant",
   "llama-3.3-70b-versatile",
 ];
+
+const KNOWN_GIT_HOSTS = ["github.com", "gitlab.com", "bitbucket.org", "gitee.com"];
 
 const KNOWN_BASE_URL_HOSTNAMES = new Set(PREDEFINED_BASE_URLS.map((p) => new URL(p.value).hostname));
 
@@ -214,6 +229,7 @@ function render(notice) {
     ])
   );
   body.appendChild(errorBox);
+  body.appendChild(renderGitTokensSection(notice));
   body.appendChild(renderStorageSection(notice));
   body.appendChild(renderBackupSection(notice));
   dialog.appendChild(body);
@@ -246,6 +262,64 @@ function render(notice) {
       ),
     ])
   );
+}
+
+function renderGitTokensSection(notice) {
+  const tokens = getGitTokens();
+  const hosts = Object.keys(tokens);
+
+  const rows = hosts.map((host) =>
+    el("div", { class: "connection-row" }, [
+      el("div", { class: "connection-row-use", style: "flex:1;display:flex;justify-content:space-between;padding:6px 10px;" }, [
+        el("span", { class: "connection-row-model" }, host),
+        el("span", { class: "connection-row-host" }, "•".repeat(Math.min(tokens[host].length, 12))),
+      ]),
+      el(
+        "button",
+        {
+          type: "button",
+          class: "btn btn-ghost btn-icon btn-danger",
+          title: "Remove token",
+          onClick: () => {
+            deleteGitToken(host);
+            render(notice);
+          },
+        },
+        "✕"
+      ),
+    ])
+  );
+
+  const hostInput = el("input", { type: "text", placeholder: "github.com", list: "git-token-host-options", style: "flex:1;" });
+  const hostDatalist = el("datalist", { id: "git-token-host-options" }, KNOWN_GIT_HOSTS.map((h) => el("option", { value: h })));
+  const tokenInput = el("input", { type: "password", placeholder: "personal access token", style: "flex:1;" });
+
+  const addBtn = el(
+    "button",
+    {
+      type: "button",
+      class: "btn btn-ghost",
+      onClick: () => {
+        const host = hostInput.value.trim().replace(/^https?:\/\//, "").replace(/\/+$/, "");
+        const token = tokenInput.value.trim();
+        if (!host || !token) return;
+        saveGitToken(host, token);
+        render(notice);
+      },
+    },
+    "Add"
+  );
+
+  return el("div", { class: "field" }, [
+    el("label", {}, "Git Host Access Tokens (optional)"),
+    el(
+      "div",
+      { class: "field-hint" },
+      "Unauthenticated repo access is rate-limited quite low (GitHub: 60 requests/hour) — a personal access token raises that substantially (GitHub: 5000/hour) and is required for most GitHub Enterprise / self-hosted instances. Needs repo read scope only."
+    ),
+    ...(rows.length > 0 ? [el("div", { class: "connection-history", style: "margin-top:6px;" }, rows)] : []),
+    el("div", { style: "display:flex;gap:8px;margin-top:6px;" }, [hostInput, hostDatalist, tokenInput, addBtn]),
+  ]);
 }
 
 function renderStorageSection(notice) {
@@ -296,7 +370,7 @@ function renderBackupSection(notice) {
     ),
     el("label", { for: "backup-include-keys", style: "display:flex;align-items:center;gap:6px;font-weight:400;margin-top:4px;" }, [
       includeKeysCheckbox,
-      "Include API keys in export (leave checked for a full restore; uncheck to share/store the file somewhere less trusted)",
+      "Include API keys and Git host tokens in export (leave checked for a full restore; uncheck to share/store the file somewhere less trusted)",
     ]),
     el("div", { style: "display:flex;gap:8px;margin-top:6px;" }, [
       el("button", { class: "btn btn-ghost", type: "button", onClick: () => handleExport(includeKeysCheckbox.checked) }, "⬇ Export Backup"),

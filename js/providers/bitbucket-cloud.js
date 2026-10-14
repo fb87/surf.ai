@@ -31,8 +31,14 @@ function apiBase() {
   return "https://api.bitbucket.org/2.0";
 }
 
+// Bitbucket Cloud accepts an Atlassian API token (or App Password) as a
+// Bearer token on its REST API.
+function authHeaders(ref) {
+  return ref.token ? { Authorization: `Bearer ${ref.token}` } : {};
+}
+
 export async function fetchDefaultBranch(ref) {
-  const res = await providerFetch(`${apiBase()}/repositories/${ref.owner}/${ref.repo}`);
+  const res = await providerFetch(`${apiBase()}/repositories/${ref.owner}/${ref.repo}`, { headers: authHeaders(ref) });
   const json = await res.json();
   return json.mainbranch?.name;
 }
@@ -49,7 +55,7 @@ export async function fetchTree(ref) {
 
     while (url && dirCalls < MAX_DIR_CALLS) {
       dirCalls++;
-      const res = await providerFetch(url);
+      const res = await providerFetch(url, { headers: authHeaders(ref) });
       const json = await res.json();
       for (const e of json.values || []) {
         if (e.type === "commit_directory") {
@@ -73,6 +79,8 @@ export async function fetchReadme(ref) {
 
 export async function fetchRawFile(ref, path, maxChars = 50_000) {
   const encodedPath = path.split("/").map(encodeURIComponent).join("/");
-  const res = await providerFetch(`${apiBase()}/repositories/${ref.owner}/${ref.repo}/src/${encodeURIComponent(ref.branch)}/${encodedPath}`);
+  const res = await providerFetch(`${apiBase()}/repositories/${ref.owner}/${ref.repo}/src/${encodeURIComponent(ref.branch)}/${encodedPath}`, {
+    headers: authHeaders(ref),
+  });
   return truncateText(await res.text(), maxChars);
 }

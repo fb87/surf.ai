@@ -46,8 +46,12 @@ function apiBase(host) {
   return `https://${host}/api/v4`;
 }
 
+function authHeaders(ref) {
+  return ref.token ? { "PRIVATE-TOKEN": ref.token } : {};
+}
+
 export async function fetchDefaultBranch(ref) {
-  const res = await providerFetch(`${apiBase(ref.host)}/projects/${projectPath(ref)}`);
+  const res = await providerFetch(`${apiBase(ref.host)}/projects/${projectPath(ref)}`, { headers: authHeaders(ref) });
   const json = await res.json();
   return json.default_branch;
 }
@@ -57,7 +61,7 @@ export async function fetchTree(ref) {
   let truncated = false;
   for (let page = 1; page <= MAX_TREE_PAGES; page++) {
     const url = `${apiBase(ref.host)}/projects/${projectPath(ref)}/repository/tree?recursive=true&ref=${encodeURIComponent(ref.branch)}&per_page=${PER_PAGE}&page=${page}`;
-    const res = await providerFetch(url);
+    const res = await providerFetch(url, { headers: authHeaders(ref) });
     const batch = await res.json();
     for (const e of batch) {
       entries.push({ path: e.path, type: e.type === "tree" ? "tree" : "blob", size: undefined, sha: e.id });
@@ -74,6 +78,8 @@ export async function fetchReadme(ref) {
 
 export async function fetchRawFile(ref, path, maxChars = 50_000) {
   const encodedPath = encodeURIComponent(path);
-  const res = await providerFetch(`${apiBase(ref.host)}/projects/${projectPath(ref)}/repository/files/${encodedPath}/raw?ref=${encodeURIComponent(ref.branch)}`);
+  const res = await providerFetch(`${apiBase(ref.host)}/projects/${projectPath(ref)}/repository/files/${encodedPath}/raw?ref=${encodeURIComponent(ref.branch)}`, {
+    headers: authHeaders(ref),
+  });
   return truncateText(await res.text(), maxChars);
 }

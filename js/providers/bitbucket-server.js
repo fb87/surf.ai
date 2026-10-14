@@ -5,9 +5,10 @@ import { providerFetch, probeReadme, truncateText } from "./common.js";
 // rather than a flat workspace/repo path. Untested against a real instance
 // (none available) — implemented per Atlassian's published REST docs. Most
 // self-hosted instances require authentication even for nominally public
-// repos, which this app doesn't support, and CORS is admin/version-dependent,
-// so this is likely to fail outright on many real deployments; errors surface
-// clearly rather than hanging.
+// repos — a personal access token can now be configured per-host in Settings
+// for exactly this case. CORS is still admin/version-dependent regardless of
+// auth, so this may fail outright on some deployments either way; errors
+// surface clearly rather than hanging.
 export const id = "bitbucket-server";
 export const label = "Bitbucket Server";
 
@@ -44,8 +45,12 @@ function apiBase(host) {
   return `https://${host}/rest/api/1.0`;
 }
 
+function authHeaders(ref) {
+  return ref.token ? { Authorization: `Bearer ${ref.token}` } : {};
+}
+
 export async function fetchDefaultBranch(ref) {
-  const res = await providerFetch(`${apiBase(ref.host)}/projects/${ref.owner}/repos/${ref.repo}/branches/default`);
+  const res = await providerFetch(`${apiBase(ref.host)}/projects/${ref.owner}/repos/${ref.repo}/branches/default`, { headers: authHeaders(ref) });
   const json = await res.json();
   return json.displayId;
 }
@@ -56,7 +61,7 @@ export async function fetchTree(ref) {
   let truncated = false;
   for (let page = 0; page < MAX_PAGES; page++) {
     const url = `${apiBase(ref.host)}/projects/${ref.owner}/repos/${ref.repo}/files?at=${encodeURIComponent(ref.branch)}&limit=${PAGE_LIMIT}&start=${start}`;
-    const res = await providerFetch(url);
+    const res = await providerFetch(url, { headers: authHeaders(ref) });
     const json = await res.json();
     for (const path of json.values || []) {
       entries.push({ path, type: "blob", size: undefined });
@@ -74,6 +79,8 @@ export async function fetchReadme(ref) {
 
 export async function fetchRawFile(ref, path, maxChars = 50_000) {
   const encodedPath = path.split("/").map(encodeURIComponent).join("/");
-  const res = await providerFetch(`${apiBase(ref.host)}/projects/${ref.owner}/repos/${ref.repo}/raw/${encodedPath}?at=${encodeURIComponent(ref.branch)}`);
+  const res = await providerFetch(`${apiBase(ref.host)}/projects/${ref.owner}/repos/${ref.repo}/raw/${encodedPath}?at=${encodeURIComponent(ref.branch)}`, {
+    headers: authHeaders(ref),
+  });
   return truncateText(await res.text(), maxChars);
 }

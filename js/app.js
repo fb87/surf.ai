@@ -1,5 +1,5 @@
 import { getState, setState, subscribe } from "./state.js";
-import { getSettings, isSettingsValid, saveCachedWiki, getCachedWiki, listCachedRepos, getTheme, saveTheme } from "./storage/cache.js";
+import { getSettings, isSettingsValid, saveCachedWiki, getCachedWiki, listCachedRepos, getTheme, saveTheme, getGitToken } from "./storage/cache.js";
 import { openSettings } from "./views/settings-modal.js";
 import { openProviderPicker } from "./views/provider-picker-modal.js";
 import { mountLandingView } from "./views/landing-view.js";
@@ -55,10 +55,11 @@ async function runGeneration(adapter, repoMeta, { bypassCache, previousWikiData 
   });
 
   const settings = getSettings();
+  const repoMetaWithToken = { ...repoMeta, token: getGitToken(repoMeta.host) };
   try {
     const wiki = await generateWiki(
       adapter,
-      repoMeta,
+      repoMetaWithToken,
       settings,
       (progress) => setState({ progress }),
       previousWikiData
