@@ -27,13 +27,44 @@ function rateLimitMessage(res) {
   return "API rate limit exceeded for unauthenticated access. Wait a bit and try again.";
 }
 
-export async function providerFetch(url, { headers = {}, accept404 = false } = {}) {
-  let res;
-  try {
-    res = await fetch(url, { headers });
-  } catch (err) {
-    throw new ProviderApiError(`Network error reaching the repository host: ${err.message}`, "network");
+const MAX_429_RETRIES = 3;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Honors Retry-After (seconds, or an HTTP date) if the host sends one,
+// otherwise falls back to exponential backoff with jitter. Needed for hosts
+// like raw.githubusercontent.com, which throttles bursts of concurrent
+// requests at the CDN level — a transient, retry-worthy 429 distinct from
+// api.github.com's hourly quota (which doesn't recover within a retry loop
+// and is reported as a hard error instead, not retried here).
+function retryDelayMs(res, attempt) {
+  const retryAfter = res.headers.get("retry-after");
+  if (retryAfter) {
+    const asSeconds = Number(retryAfter);
+    if (!Number.isNaN(asSeconds)) return asSeconds * 1000;
+    const asDate = new Date(retryAfter);
+    if (!Number.isNaN(asDate.getTime())) return Math.max(0, asDate.getTime() - Date.now());
   }
+  return 1000 * 2 ** attempt + Math.random() * 300;
+}
+
+async function fetchWithRetry(url, headers) {
+  for (let attempt = 0; ; attempt++) {
+    let res;
+    try {
+      res = await fetch(url, { headers });
+    } catch (err) {
+      throw new ProviderApiError(`Network error reaching the repository host: ${err.message}`, "network");
+    }
+    if (res.status !== 429 || attempt >= MAX_429_RETRIES) return res;
+    await sleep(retryDelayMs(res, attempt));
+  }
+}
+
+export async function providerFetch(url, { headers = {}, accept404 = false } = {}) {
+  const res = await fetchWithRetry(url, headers);
 
   if (res.status === 404 && accept404) return null;
   if (res.status === 404) {

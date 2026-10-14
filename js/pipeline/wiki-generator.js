@@ -85,7 +85,12 @@ export async function generateWiki(adapter, repoMeta, settings, onProgress = () 
         summary = prev.summary;
         reusedCount++;
       } else {
-        const filesWithContent = await runWithConcurrency(mod.files, 4, (f) => adapter.fetchRawFile(fullRef, f.path));
+        // Capped lower than module-level concurrency (3) would otherwise allow,
+        // since raw.githubusercontent.com throttles bursts of concurrent
+        // anonymous requests at the CDN level — up to 3*2=6 concurrent raw
+        // fetches at once is gentler than the previous 3*4=12 while providerFetch's
+        // retry-with-backoff (common.js) covers the rest.
+        const filesWithContent = await runWithConcurrency(mod.files, 2, (f) => adapter.fetchRawFile(fullRef, f.path));
         const { messages } = buildModuleSummaryPrompt(mod, filesWithContent, fullRef);
         try {
           const { content } = await chatCompletion({ ...settings, messages });
