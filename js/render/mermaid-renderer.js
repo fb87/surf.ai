@@ -8,7 +8,7 @@ function currentMermaidTheme() {
 }
 
 function ensureInitialized() {
-  mermaid.initialize({ startOnLoad: false, theme: currentMermaidTheme(), securityLevel: "strict" });
+  mermaid.initialize({ startOnLoad: false, theme: currentMermaidTheme(), securityLevel: "strict", fontFamily: "Xanh Mono" });
   initialized = true;
 }
 

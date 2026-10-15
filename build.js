@@ -32,9 +32,13 @@ function main() {
 
   const fontNormal = fs.readFileSync(path.join(ROOT, "css/fonts/alegreya-normal.woff2")).toString("base64");
   const fontItalic = fs.readFileSync(path.join(ROOT, "css/fonts/alegreya-italic.woff2")).toString("base64");
+  const monoNormal = fs.readFileSync(path.join(ROOT, "css/fonts/xanh-mono-normal.woff2")).toString("base64");
+  const monoItalic = fs.readFileSync(path.join(ROOT, "css/fonts/xanh-mono-italic.woff2")).toString("base64");
   combinedCss = combinedCss
     .split('url("fonts/alegreya-normal.woff2")').join(`url(data:font/woff2;base64,${fontNormal})`)
-    .split('url("fonts/alegreya-italic.woff2")').join(`url(data:font/woff2;base64,${fontItalic})`);
+    .split('url("fonts/alegreya-italic.woff2")').join(`url(data:font/woff2;base64,${fontItalic})`)
+    .split('url("fonts/xanh-mono-normal.woff2")').join(`url(data:font/woff2;base64,${monoNormal})`)
+    .split('url("fonts/xanh-mono-italic.woff2")').join(`url(data:font/woff2;base64,${monoItalic})`);
 
   const minifiedCss = esbuild(["--loader=css", "--minify"], combinedCss);
 

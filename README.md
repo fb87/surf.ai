@@ -58,7 +58,7 @@ python3 -m http.server 8000
 
 ## Building a single-file distributable
 
-`shell.nix` + `build.js` bundle the whole app — JS, CSS, vendored libraries, and the Alegreya font — into one minified, self-contained `dist/surf.ai.html` with zero external dependencies. It works straight off disk via `file://`, since unlike the dev version it isn't ES modules.
+`shell.nix` + `build.js` bundle the whole app — JS, CSS, vendored libraries, and the Alegreya and Xanh Mono fonts — into one minified, self-contained `dist/surf.ai.html` with zero external dependencies. It works straight off disk via `file://`, since unlike the dev version it isn't ES modules.
 
 ```sh
 nix-shell --run 'node build.js'
