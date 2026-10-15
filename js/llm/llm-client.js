@@ -28,6 +28,28 @@ function isAnthropicBaseUrl(baseUrl) {
   }
 }
 
+export function getLlmProviderLabel(baseUrl) {
+  let hostname;
+  try {
+    hostname = new URL(baseUrl).hostname;
+  } catch {
+    return "Custom provider";
+  }
+
+  const labels = {
+    "api.openai.com": "OpenAI",
+    "generativelanguage.googleapis.com": "Google Gemini",
+    "api.anthropic.com": "Anthropic",
+    "api.groq.com": "Groq",
+    "openrouter.ai": "OpenRouter",
+  };
+  if (labels[hostname]) return labels[hostname];
+  if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname.endsWith(".local")) {
+    return `Local (${hostname})`;
+  }
+  return hostname;
+}
+
 export async function chatCompletion({ baseUrl, apiKey, model, messages, responseFormat, tools, temperature = 0.3, maxTokens }) {
   if (isAnthropicBaseUrl(baseUrl)) {
     // Tool-calling against Anthropic's native Messages API uses a structurally

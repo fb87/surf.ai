@@ -166,6 +166,8 @@ export function saveCachedWiki(wikiData) {
     index.push({
       key,
       providerId: wikiData.providerId,
+      llmProvider: wikiData.llmProvider,
+      llmModel: wikiData.llmModel,
       host: wikiData.host,
       owner: wikiData.owner,
       repo: wikiData.repo,

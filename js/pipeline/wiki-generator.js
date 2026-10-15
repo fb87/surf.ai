@@ -1,5 +1,5 @@
 import { classifyFiles, groupIntoModules, moduleSignature } from "../providers/repo-filter.js";
-import { chatCompletion } from "../llm/llm-client.js";
+import { chatCompletion, getLlmProviderLabel } from "../llm/llm-client.js";
 import { buildModuleSummaryPrompt, buildTreeOutline, buildSynthesisPrompt } from "./prompts.js";
 import { extractJson, validateModuleSummary, validateWikiStructure } from "./schema.js";
 import { runWithConcurrency } from "../utils/concurrency.js";
@@ -122,7 +122,15 @@ export async function generateWiki(adapter, repoMeta, settings, onProgress = () 
 
     if (previousWikiData && readmeUnchanged && moduleSetUnchanged) {
       onProgress({ phase: "up-to-date", owner: repoMeta.owner, repo: repoMeta.repo });
-      return { ...previousWikiData, moduleManifest: newManifest, readme: readme || null, checked_at: new Date().toISOString(), unchanged: true };
+      return {
+        ...previousWikiData,
+        llmProvider: previousWikiData.llmProvider || getLlmProviderLabel(settings.baseUrl),
+        llmModel: previousWikiData.llmModel || settings.model,
+        moduleManifest: newManifest,
+        readme: readme || null,
+        checked_at: new Date().toISOString(),
+        unchanged: true,
+      };
     }
 
     onProgress({ phase: "pass2", owner: repoMeta.owner, repo: repoMeta.repo });
@@ -149,6 +157,9 @@ export async function generateWiki(adapter, repoMeta, settings, onProgress = () 
 
     return {
       providerId: repoMeta.providerId,
+      // Incremental updates keep the attribution of the original wiki.
+      llmProvider: previousWikiData?.llmProvider || getLlmProviderLabel(settings.baseUrl),
+      llmModel: previousWikiData?.llmModel || settings.model,
       host: repoMeta.host,
       owner: repoMeta.owner,
       repo: repoMeta.repo,
