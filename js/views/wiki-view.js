@@ -7,6 +7,7 @@ import { askQuestion } from "../pipeline/qa.js";
 import { mapErrorToMessage } from "../utils/errors.js";
 
 const ASK_PAGE_ID = "__ask__";
+const MAX_PROMPT_HISTORY = 10;
 
 export function mountWikiView(root, wikiData, activePageId, { onUpdate, onFullRebuild, onBack }) {
   clear(root);
@@ -102,6 +103,9 @@ export function mountWikiView(root, wikiData, activePageId, { onUpdate, onFullRe
 
 function mountAskPanel(wikiData) {
   const qaHistory = wikiData.qaHistory || (wikiData.qaHistory = []);
+  const promptHistory = qaHistory.filter((m) => m.role === "user").map((m) => m.content).slice(-MAX_PROMPT_HISTORY);
+  let promptHistoryIndex = promptHistory.length;
+  let draftBeforeHistory = "";
 
   const messagesEl = el("div", { class: "qa-messages" });
 
@@ -125,8 +129,27 @@ function mountAskPanel(wikiData) {
   }
   renderMessages();
 
-  const textarea = el("textarea", { placeholder: "Ask about this repo…", rows: "1" });
+  const textarea = el("textarea", { placeholder: "Ask about this repo… (↑/↓ for history)", rows: "1" });
   textarea.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+      const atStart = textarea.selectionStart === 0 && textarea.selectionEnd === 0;
+      const atEnd = textarea.selectionStart === textarea.value.length && textarea.selectionEnd === textarea.value.length;
+      const canNavigate = e.key === "ArrowUp" ? atStart : atEnd;
+
+      if (canNavigate && promptHistory.length > 0) {
+        e.preventDefault();
+        if (e.key === "ArrowUp") {
+          if (promptHistoryIndex === promptHistory.length) draftBeforeHistory = textarea.value;
+          promptHistoryIndex = Math.max(0, promptHistoryIndex - 1);
+        } else if (promptHistoryIndex < promptHistory.length) {
+          promptHistoryIndex++;
+        }
+
+        textarea.value = promptHistoryIndex === promptHistory.length ? draftBeforeHistory : promptHistory[promptHistoryIndex];
+        textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+        return;
+      }
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       send();
@@ -147,6 +170,10 @@ function mountAskPanel(wikiData) {
     }
 
     textarea.value = "";
+    promptHistory.push(question);
+    if (promptHistory.length > MAX_PROMPT_HISTORY) promptHistory.shift();
+    promptHistoryIndex = promptHistory.length;
+    draftBeforeHistory = "";
     textarea.disabled = true;
     sendBtn.disabled = true;
 

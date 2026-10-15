@@ -168,6 +168,8 @@ export function saveCachedWiki(wikiData) {
       providerId: wikiData.providerId,
       llmProvider: wikiData.llmProvider,
       llmModel: wikiData.llmModel,
+      updateLlmProvider: wikiData.updateLlmProvider,
+      updateLlmModel: wikiData.updateLlmModel,
       host: wikiData.host,
       owner: wikiData.owner,
       repo: wikiData.repo,

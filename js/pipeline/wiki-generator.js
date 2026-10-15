@@ -126,6 +126,8 @@ export async function generateWiki(adapter, repoMeta, settings, onProgress = () 
         ...previousWikiData,
         llmProvider: previousWikiData.llmProvider || getLlmProviderLabel(settings.baseUrl),
         llmModel: previousWikiData.llmModel || settings.model,
+        updateLlmProvider: getLlmProviderLabel(settings.baseUrl),
+        updateLlmModel: settings.model,
         moduleManifest: newManifest,
         readme: readme || null,
         checked_at: new Date().toISOString(),
@@ -157,9 +159,11 @@ export async function generateWiki(adapter, repoMeta, settings, onProgress = () 
 
     return {
       providerId: repoMeta.providerId,
-      // Incremental updates keep the attribution of the original wiki.
       llmProvider: previousWikiData?.llmProvider || getLlmProviderLabel(settings.baseUrl),
       llmModel: previousWikiData?.llmModel || settings.model,
+      ...(previousWikiData
+        ? { updateLlmProvider: getLlmProviderLabel(settings.baseUrl), updateLlmModel: settings.model }
+        : {}),
       host: repoMeta.host,
       owner: repoMeta.owner,
       repo: repoMeta.repo,

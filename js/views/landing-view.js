@@ -149,6 +149,13 @@ function renderCachedCard(entry, root, { onGenerateRepo }) {
         { class: "card-meta" },
         `Generated with ${entry.llmModel || "model unavailable"} via ${entry.llmProvider || "provider unavailable"}`
       ),
+      entry.updateLlmModel || entry.updateLlmProvider
+        ? el(
+            "div",
+            { class: "card-meta" },
+            `Updated with ${entry.updateLlmModel || "model unavailable"} via ${entry.updateLlmProvider || "provider unavailable"}`
+          )
+        : null,
     ]),
     el("div", { class: "card-actions" }, [
       el(
