@@ -13,18 +13,11 @@
   src: url("fonts/alegreya-italic.woff2") format("woff2");
 }
 @font-face {
-  font-family: "Xanh Mono";
+  font-family: "Alegreya Mono";
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url("fonts/xanh-mono-normal.woff2") format("woff2");
-}
-@font-face {
-  font-family: "Xanh Mono";
-  font-style: italic;
-  font-weight: 400;
-  font-display: swap;
-  src: url("fonts/xanh-mono-italic.woff2") format("woff2");
+  src: url("fonts/alegreya-mono-regular.woff2") format("woff2");
 }
 
 * {

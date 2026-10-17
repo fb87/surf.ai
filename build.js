@@ -25,20 +25,20 @@ function main() {
   // 1. Bundle + minify the ES module graph into a single IIFE script.
   const appBundle = esbuild([path.join(ROOT, "js/app.js"), "--bundle", "--minify", "--format=iife"]);
 
-  // 2. Concatenate CSS in cascade order, inline the variable-font files as
-  //    base64 data URIs (no separate font files in a single-file build), then minify.
+  // 2. Concatenate CSS in cascade order, inline every vendored font in
+  //    css/fonts/ as a base64 data URI (no separate font files in a
+  //    single-file build), then minify. Auto-discovered rather than
+  //    hardcoded per filename, so adding/removing/renaming a font here never
+  //    needs a matching edit in this file.
   const cssOrder = ["theme.css", "base.css", "components.css", "layout.css", "markdown.css"];
   let combinedCss = cssOrder.map((f) => readFile(path.join("css", f))).join("\n");
 
-  const fontNormal = fs.readFileSync(path.join(ROOT, "css/fonts/alegreya-normal.woff2")).toString("base64");
-  const fontItalic = fs.readFileSync(path.join(ROOT, "css/fonts/alegreya-italic.woff2")).toString("base64");
-  const monoNormal = fs.readFileSync(path.join(ROOT, "css/fonts/xanh-mono-normal.woff2")).toString("base64");
-  const monoItalic = fs.readFileSync(path.join(ROOT, "css/fonts/xanh-mono-italic.woff2")).toString("base64");
-  combinedCss = combinedCss
-    .split('url("fonts/alegreya-normal.woff2")').join(`url(data:font/woff2;base64,${fontNormal})`)
-    .split('url("fonts/alegreya-italic.woff2")').join(`url(data:font/woff2;base64,${fontItalic})`)
-    .split('url("fonts/xanh-mono-normal.woff2")').join(`url(data:font/woff2;base64,${monoNormal})`)
-    .split('url("fonts/xanh-mono-italic.woff2")').join(`url(data:font/woff2;base64,${monoItalic})`);
+  const fontsDir = path.join(ROOT, "css/fonts");
+  for (const fontFile of fs.readdirSync(fontsDir)) {
+    if (!fontFile.endsWith(".woff2")) continue;
+    const base64 = fs.readFileSync(path.join(fontsDir, fontFile)).toString("base64");
+    combinedCss = combinedCss.split(`url("fonts/${fontFile}")`).join(`url(data:font/woff2;base64,${base64})`);
+  }
 
   const minifiedCss = esbuild(["--loader=css", "--minify"], combinedCss);
 
